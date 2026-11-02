@@ -1,11 +1,5 @@
-# Usage:
-#   cp .env.example .env   # set DOMAIN and PUBLIC_IP
-#   docker compose up -d --build
-#
-# Host networking is used so the TURN relay ports reach the container without
-# NAT rewriting (and without Docker creating thousands of proxy processes).
-# Caddy gets a Let's Encrypt certificate for DOMAIN automatically; browsers
-# require HTTPS for camera, microphone and screen sharing.
+# Quickly setup a Cricket server!
+# Though mainly used for development purposes there is no reason you cannot use this!
 
 services:
   cricket:

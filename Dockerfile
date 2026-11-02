@@ -1,15 +1,17 @@
 # ---- build ----
 FROM golang:1.25-alpine AS build
+RUN apk add --no-cache make
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/cricket .
+RUN make build \
+ && cp out/cricket-* /cricket-bin
 
 # ---- run ----
 # One static binary: web app + signaling + built-in STUN/TURN server.
 FROM gcr.io/distroless/static-debian12:nonroot
-COPY --from=build /out/cricket /cricket
+COPY --from=build /cricket-bin /cricket
 
 # 8080/tcp  HTTP (put a TLS reverse proxy in front, see docker-compose.yml)
 # 3478      STUN/TURN, udp + tcp
