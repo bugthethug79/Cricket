@@ -1,0 +1,42 @@
+# Usage:
+#   cp .env.example .env   # set DOMAIN and PUBLIC_IP
+#   docker compose up -d --build
+#
+# Host networking is used so the TURN relay ports reach the container without
+# NAT rewriting (and without Docker creating thousands of proxy processes).
+# Caddy gets a Let's Encrypt certificate for DOMAIN automatically; browsers
+# require HTTPS for camera, microphone and screen sharing.
+
+services:
+  cricket:
+    build: .
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      LISTEN_ADDR: 127.0.0.1:8080
+      TRUST_PROXY: "true"
+      PUBLIC_IP: ${PUBLIC_IP:?set PUBLIC_IP in .env}
+      TURN_HOST: ${DOMAIN:?set DOMAIN in .env}
+      TURN_SECRET: ${TURN_SECRET:-}
+      TURN_PORT: ${TURN_PORT:-3478}
+      TURN_MIN_PORT: ${TURN_MIN_PORT:-49160}
+      TURN_MAX_PORT: ${TURN_MAX_PORT:-49200}
+      FORCE_RELAY: ${FORCE_RELAY:-false}
+      CREATE_TOKEN: ${CREATE_TOKEN:-}
+      MAX_PEERS_PER_ROOM: ${MAX_PEERS_PER_ROOM:-12}
+      ROOM_IDLE_TTL: ${ROOM_IDLE_TTL:-6h}
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

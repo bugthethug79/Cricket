@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="light dark">
+  <title>Cricket</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+
+<!-- Landing: create a room -->
+<section id="landing" class="screen window" hidden>
+  <header class="headerbar flat"><span class="hb-title">Cricket</span></header>
+  <div class="status-page">
+    <div class="status-icon">
+      <svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg>
+    </div>
+    <h1 class="title-1">Private Rooms</h1>
+    <p class="body dim">Voice, video, screen sharing and chat. Rooms are unlisted and can only be reached with their link.</p>
+
+    <div class="clamp">
+      <div id="tokenRow" class="boxed-list" hidden>
+        <label class="row entry-row">
+          <span class="row-title">Creation Token</span>
+          <input id="createToken" type="password" autocomplete="off" placeholder="Required by this server">
+        </label>
+      </div>
+      <button id="createBtn" class="btn pill suggested">Create Room</button>
+      <p id="landingErr" class="error" hidden></p>
+    </div>
+  </div>
+</section>
+
+<!-- Pre-join: pick a name -->
+<section id="prejoin" class="screen window" hidden>
+  <header class="headerbar flat"><span class="hb-title">Cricket</span></header>
+  <form id="joinForm" class="status-page">
+    <div class="status-icon">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/></svg>
+    </div>
+    <h1 class="title-1">Join Room</h1>
+    <p class="body dim">Chat is end-to-end encrypted and never stored. People who join later don't see earlier messages.</p>
+    <div class="clamp">
+      <div class="boxed-list">
+        <label class="row entry-row">
+          <span class="row-title">Name</span>
+          <input id="nameInput" maxlength="32" autocomplete="nickname" placeholder="Guest" required>
+        </label>
+      </div>
+      <p class="caption dim center">You'll join muted with your camera off.</p>
+      <button class="btn pill suggested" type="submit">Join</button>
+      <p id="joinErr" class="error" hidden></p>
+    </div>
+  </form>
+</section>
+
+<!-- Call -->
+<section id="call" class="screen" hidden>
+  <div class="stage">
+    <header class="headerbar">
+      <span class="hb-start"></span>
+      <div class="hb-center">
+        <span class="hb-title">Cricket</span>
+        <span id="count" class="hb-subtitle">1 in call</span>
+      </div>
+      <div class="hb-end">
+        <button id="copyLink" class="btn flat circular" title="Copy Invite Link">
+          <svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>
+        </button>
+      </div>
+    </header>
+    <div id="audioHint" class="banner" hidden>
+      <span>Audio is blocked by your browser</span>
+      <button id="audioUnlock" class="btn suggested">Enable Audio</button>
+    </div>
+    <div id="tiles" class="tiles"></div>
+    <footer class="controls">
+      <button id="micBtn" class="ctl" title="Microphone (M)"><span class="ic"></span><span class="lbl">Mic</span></button>
+      <button id="camBtn" class="ctl" title="Camera (V)"><span class="ic"></span><span class="lbl">Camera</span></button>
+      <button id="screenBtn" class="ctl" title="Share Screen"><span class="ic"></span><span class="lbl">Share</span></button>
+      <button id="panelBtn" class="ctl" title="People and Chat"><span class="ic"></span><span class="lbl">Chat</span><span id="unread" class="badge" hidden></span></button>
+      <button id="leaveBtn" class="ctl danger" title="Leave"><span class="ic"></span><span class="lbl">Leave</span></button>
+    </footer>
+  </div>
+  <aside id="panel" class="panel">
+    <header class="headerbar tabs">
+      <div class="linked switcher">
+        <button class="tab active" data-tab="people">People <span id="peopleCount" class="count"></span></button>
+        <button class="tab" data-tab="chat">Chat</button>
+      </div>
+      <button id="panelClose" class="btn flat circular close" title="Close">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </header>
+    <div class="people-wrap">
+      <ul id="people" class="boxed-list people"></ul>
+    </div>
+    <div id="chat" class="chat" hidden>
+      <div id="messages" class="messages">
+        <p class="sys">Messages are end-to-end encrypted and disappear when you leave.</p>
+      </div>
+      <form id="chatForm" class="composer">
+        <input id="chatInput" maxlength="2000" autocomplete="off" placeholder="Message">
+        <button class="btn suggested circular" type="submit" title="Send">
+          <svg viewBox="0 0 24 24"><path d="M4 12 20 4l-6 16-3-7-7-1Z"/></svg>
+        </button>
+      </form>
+    </div>
+  </aside>
+</section>
+
+<!-- Ended / errors -->
+<section id="ended" class="screen window" hidden>
+  <header class="headerbar flat"><span class="hb-title">Cricket</span></header>
+  <div class="status-page">
+    <div class="status-icon">
+      <svg viewBox="0 0 24 24"><path d="M10 17l-5-5 5-5M5 12h11M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/></svg>
+    </div>
+    <h1 id="endedTitle" class="title-1">You left the room</h1>
+    <p id="endedMsg" class="body dim"></p>
+    <div class="clamp">
+      <button id="rejoinBtn" class="btn pill suggested">Rejoin</button>
+      <a href="/" class="btn pill">New Room</a>
+    </div>
+  </div>
+</section>
+
+<div id="toast" class="toast" hidden></div>
+<script src="/assets/app.js"></script>
+</body>
+</html>

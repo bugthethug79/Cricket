@@ -1,0 +1,4 @@
+*.exe
+cricket
+.env
+.git
