@@ -1,11 +1,13 @@
 # ---- build ----
-FROM golang:1.25-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS build
+ARG TARGETOS
+ARG TARGETARCH
 RUN apk add --no-cache make
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN make build \
+RUN GOOS=$TARGETOS GOARCH=$TARGETARCH make build \
  && cp out/cricket-* /cricket-bin
 
 # ---- run ----

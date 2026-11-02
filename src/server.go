@@ -51,6 +51,15 @@ func (s *Server) Handler(static fs.FS) http.Handler {
 	mux.HandleFunc("GET /{$}", index)
 	mux.HandleFunc("GET /j", index)
 	mux.Handle("GET /assets/", files)
+	mux.HandleFunc("GET /manifest.webmanifest", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/manifest+json")
+		http.ServeFileFS(w, r, static, "manifest.webmanifest")
+	})
+	mux.HandleFunc("GET /sw.js", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		w.Header().Set("Service-Worker-Allowed", "/")
+		http.ServeFileFS(w, r, static, "sw.js")
+	})
 	mux.HandleFunc("GET /robots.txt", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		w.Write([]byte("User-agent: *\nDisallow: /\n"))

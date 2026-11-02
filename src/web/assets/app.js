@@ -65,14 +65,20 @@
   }
 
   const ICONS = {
-    mic: '<svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Z"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3"/></svg>',
-    micOff: '<svg viewBox="0 0 24 24"><path d="M15 9.3V6a3 3 0 0 0-5.7-1.3M9 9v3a3 3 0 0 0 4.9 2.3M19 11a7 7 0 0 1-1.2 3.9M5 11a7 7 0 0 0 11 5.7M12 18v3M3 3l18 18"/></svg>',
-    cam: '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg>',
-    camOff: '<svg viewBox="0 0 24 24"><path d="M16 16v1a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h1m4 0h5a1 1 0 0 1 1 1v3l5-3v10M3 3l18 18"/></svg>',
-    screen: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>',
-    chat: '<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/></svg>',
-    leave: '<svg viewBox="0 0 24 24"><path d="M10 17l-5-5 5-5M5 12h11M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/></svg>',
+    mic: 'ic-mic',
+    micOff: 'ic-mic-off',
+    cam: 'ic-video',
+    camOff: 'ic-camera-off',
+    screen: 'ic-screen',
+    chat: 'ic-chat',
+    leave: 'ic-leave',
   };
+
+  function setIcon(parent, name) {
+    const el = document.createElement('span');
+    el.className = 'icon ' + name;
+    parent.replaceChildren(el);
+  }
 
   // ---------- invite links ----------
   // Link format: https://host/j#<base64url(JSON {"v":1,"room":"…","key":"…"})>
@@ -492,8 +498,7 @@
     const label = document.createElement('div');
     label.className = 'label';
     const micEl = document.createElement('span');
-    micEl.className = 'mic-off';
-    micEl.innerHTML = ICONS.micOff;
+    micEl.className = 'mic-off icon ' + ICONS.micOff;
     const nameEl = document.createElement('span');
     label.append(micEl, nameEl);
     el.append(video, avatar, label);
@@ -593,9 +598,9 @@
       icons.className = 'picons';
       const st = p.state || {};
       icons.innerHTML =
-        (st.screen ? `<i class="on" title="Sharing screen">${ICONS.screen}</i>` : '') +
-        (st.cam ? `<i class="on" title="Camera on">${ICONS.cam}</i>` : '') +
-        (st.mic ? `<i title="Mic on">${ICONS.mic}</i>` : `<i class="off" title="Muted">${ICONS.micOff}</i>`);
+        (st.screen ? `<i class="on icon ${ICONS.screen}" title="Sharing screen"></i>` : '') +
+        (st.cam ? `<i class="on icon ${ICONS.cam}" title="Camera on"></i>` : '') +
+        (st.mic ? `<i class="icon ${ICONS.mic}" title="Mic on"></i>` : `<i class="off icon ${ICONS.micOff}" title="Muted"></i>`);
       li.append(av, nm, icons);
       ul.append(li);
     }
@@ -607,7 +612,7 @@
     const st = myState();
     const set = (btn, on, icon, label) => {
       btn.classList.toggle('off', !on);
-      btn.querySelector('.ic').innerHTML = icon;
+      setIcon(btn.querySelector('.ic'), icon);
       btn.querySelector('.lbl').textContent = label;
     };
     set($('#micBtn'), st.mic, st.mic ? ICONS.mic : ICONS.micOff, st.mic ? 'Mute' : 'Unmute');
@@ -696,8 +701,8 @@
   function bindControls() {
     if (bound) return;
     bound = true;
-    $('#panelBtn .ic').innerHTML = ICONS.chat;
-    $('#leaveBtn .ic').innerHTML = ICONS.leave;
+    setIcon($('#panelBtn .ic'), ICONS.chat);
+    setIcon($('#leaveBtn .ic'), ICONS.leave);
     $('#micBtn').onclick = toggleMic;
     $('#camBtn').onclick = toggleCam;
     $('#screenBtn').onclick = toggleScreen;
@@ -747,6 +752,12 @@
   }
 
   // ---------- boot ----------
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    });
+  }
 
   if (!window.isSecureContext || !window.crypto || !crypto.subtle) {
     show('ended');

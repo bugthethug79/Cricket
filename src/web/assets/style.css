@@ -64,10 +64,23 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-svg {
-  width: 16px; height: 16px; flex: none;
-  fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+.icon {
+  display: inline-block; width: 16px; height: 16px; flex: none;
+  background-color: currentColor;
+  -webkit-mask: var(--icon) center / contain no-repeat;
+  mask: var(--icon) center / contain no-repeat;
 }
+.ic-video { --icon: url("/assets/icons/video.svg"); }
+.ic-camera-off { --icon: url("/assets/icons/camera-off.svg"); }
+.ic-mic { --icon: url("/assets/icons/mic.svg"); }
+.ic-mic-off { --icon: url("/assets/icons/mic-off.svg"); }
+.ic-screen { --icon: url("/assets/icons/screen.svg"); }
+.ic-chat { --icon: url("/assets/icons/chat.svg"); }
+.ic-leave { --icon: url("/assets/icons/leave.svg"); }
+.ic-user { --icon: url("/assets/icons/user.svg"); }
+.ic-link { --icon: url("/assets/icons/link.svg"); }
+.ic-close { --icon: url("/assets/icons/close.svg"); }
+.ic-send { --icon: url("/assets/icons/send.svg"); }
 
 /* ---------- typography ---------- */
 
@@ -172,7 +185,7 @@ label.row { cursor: pointer; }
   width: 128px; height: 128px; margin-bottom: 24px;
   display: grid; place-items: center; opacity: var(--dim);
 }
-.status-icon svg { width: 112px; height: 112px; stroke-width: 1.4; }
+.status-icon .icon { width: 112px; height: 112px; }
 .clamp {
   width: 100%; max-width: 400px; margin-top: 24px;
   display: flex; flex-direction: column; align-items: stretch; gap: 18px; text-align: left;
@@ -239,7 +252,7 @@ label.row { cursor: pointer; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .label .mic-off { color: #ff938c; display: inline-flex; }
-.label svg { width: 14px; height: 14px; }
+.label .icon { width: 14px; height: 14px; }
 
 .controls {
   display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;
@@ -259,7 +272,7 @@ label.row { cursor: pointer; }
 }
 .ctl:hover .ic { background: var(--btn-hover); }
 .ctl:active .ic { background: var(--btn-active); }
-.ctl .ic svg { width: 20px; height: 20px; }
+.ctl .ic .icon { width: 20px; height: 20px; }
 .ctl .lbl { opacity: .8; }
 .ctl.alert .ic { background: color-mix(in srgb, var(--destructive-bg) 18%, transparent); color: var(--destructive); }
 .ctl.alert:hover .ic { background: color-mix(in srgb, var(--destructive-bg) 28%, transparent); }

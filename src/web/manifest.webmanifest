@@ -1,0 +1,12 @@
+{
+  "id": "/",
+  "name": "Cricket",
+  "short_name": "Cricket",
+  "description": "Private rooms for voice, video, screen sharing and chat.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#fafafb",
+  "theme_color": "#3584e4"
+}

@@ -7,7 +7,13 @@
   <meta name="referrer" content="no-referrer">
   <meta name="color-scheme" content="light dark">
   <title>Cricket</title>
-  <link rel="icon" href="data:,">
+  <meta name="theme-color" content="#3584e4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#222226" media="(prefers-color-scheme: dark)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Cricket">
+  <link rel="manifest" href="/manifest.webmanifest">
   <link rel="stylesheet" href="/assets/style.css">
 </head>
 <body>
@@ -17,7 +23,7 @@
   <header class="headerbar flat"><span class="hb-title">Cricket</span></header>
   <div class="status-page">
     <div class="status-icon">
-      <svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg>
+      <span class="icon ic-video"></span>
     </div>
     <h1 class="title-1">Private Rooms</h1>
     <p class="body dim">Voice, video, screen sharing and chat.</p>
@@ -40,7 +46,7 @@
   <header class="headerbar flat"><span class="hb-title">Cricket</span></header>
   <form id="joinForm" class="status-page">
     <div class="status-icon">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/></svg>
+      <span class="icon ic-user"></span>
     </div>
     <h1 class="title-1">Join Room</h1>
     <p class="body dim">Please choose yourself a name.</p>
@@ -68,7 +74,7 @@
       </div>
       <div class="hb-end">
         <button id="copyLink" class="btn flat circular" title="Copy Invite Link">
-          <svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>
+          <span class="icon ic-link"></span>
         </button>
       </div>
     </header>
@@ -92,7 +98,7 @@
         <button class="tab" data-tab="chat">Chat</button>
       </div>
       <button id="panelClose" class="btn flat circular close" title="Close">
-        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        <span class="icon ic-close"></span>
       </button>
     </header>
     <div class="people-wrap">
@@ -105,7 +111,7 @@
       <form id="chatForm" class="composer">
         <input id="chatInput" maxlength="2000" autocomplete="off" placeholder="Message">
         <button class="btn suggested circular" type="submit" title="Send">
-          <svg viewBox="0 0 24 24"><path d="M4 12 20 4l-6 16-3-7-7-1Z"/></svg>
+          <span class="icon ic-send"></span>
         </button>
       </form>
     </div>
@@ -117,7 +123,7 @@
   <header class="headerbar flat"><span class="hb-title">Cricket</span></header>
   <div class="status-page">
     <div class="status-icon">
-      <svg viewBox="0 0 24 24"><path d="M10 17l-5-5 5-5M5 12h11M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/></svg>
+      <span class="icon ic-leave"></span>
     </div>
     <h1 id="endedTitle" class="title-1">You left the room</h1>
     <p id="endedMsg" class="body dim"></p>
