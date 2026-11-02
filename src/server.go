@@ -10,10 +10,13 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/pion/turn/v4"
 )
+
+const Version = "0.1.0"
 
 type Server struct {
 	cfg         *Config
@@ -21,14 +24,18 @@ type Server struct {
 	upgrader    websocket.Upgrader
 	createLimit *KeyLimiter
 	joinLimit   *KeyLimiter
+	conns       *connLimiter
+	turn        *turnLimiter
 }
 
-func NewServer(cfg *Config, hub *Hub) *Server {
+func NewServer(cfg *Config, hub *Hub, turnLimit *turnLimiter) *Server {
 	s := &Server{
 		cfg:         cfg,
 		hub:         hub,
-		createLimit: NewKeyLimiter(10, 5),
-		joinLimit:   NewKeyLimiter(30, 15),
+		createLimit: NewKeyLimiter(float64(cfg.CreateRatePerMin), float64(cfg.CreateBurst)),
+		joinLimit:   NewKeyLimiter(float64(cfg.JoinRatePerMin), float64(cfg.JoinBurst)),
+		conns:       newConnLimiter(cfg.MaxConns, cfg.MaxConnsPerIP),
+		turn:        turnLimit,
 	}
 	s.upgrader = websocket.Upgrader{
 		ReadBufferSize:  4096,
@@ -67,8 +74,8 @@ func (s *Server) Handler(static fs.FS) http.Handler {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok"))
 	})
-	mux.HandleFunc("GET /api/config", s.handleConfig)
-	mux.HandleFunc("POST /api/rooms", s.handleCreateRoom)
+	mux.HandleFunc("GET /api/v1/config", s.handleConfig)
+	mux.HandleFunc("POST /api/v1/rooms", s.handleCreateRoom)
 	mux.HandleFunc("GET /ws", s.handleWS)
 	return securityHeaders(mux)
 }
@@ -108,6 +115,10 @@ func (s *Server) clientIP(r *http.Request) string {
 	return host
 }
 
+func (s *Server) clientKey(r *http.Request) string {
+	return prefixKey(s.clientIP(r), s.cfg.IPv6PrefixLen)
+}
+
 func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
@@ -116,13 +127,14 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 
 func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"createTokenRequired": s.cfg.CreateToken != "",
-		"maxPeers":            s.cfg.MaxPeers,
+		"version":               Version,
+		"create_token_required": s.cfg.CreateToken != "",
+		"max_peers":             s.cfg.MaxPeers,
 	})
 }
 
 func (s *Server) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
-	if !s.createLimit.Allow(s.clientIP(r)) {
+	if !s.createLimit.Allow(s.clientKey(r)) {
 		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "Too many rooms created. Wait a minute."})
 		return
 	}
@@ -144,12 +156,12 @@ func (s *Server) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Bad verifier."})
 		return
 	}
-	id, err := s.hub.CreateRoom([32]byte(v))
+	id, hostToken, err := s.hub.CreateRoom([32]byte(v), s.clientKey(r))
 	if err != nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"room": id})
+	writeJSON(w, http.StatusOK, map[string]string{"room": id, "host": hostToken})
 }
 
 type iceServer struct {
@@ -178,6 +190,9 @@ func (s *Server) iceServers(r *http.Request, peerID string) []iceServer {
 	user, pass, err := turn.GenerateLongTermTURNRESTCredentials(s.cfg.TURNSecret, peerID, s.cfg.TURNCredTTL)
 	if err != nil {
 		return []iceServer{}
+	}
+	if s.turn != nil && s.cfg.TURNBindIP {
+		s.turn.register(peerID, s.clientIP(r), time.Now().Add(s.cfg.TURNCredTTL))
 	}
 	return []iceServer{
 		{URLs: []string{"stun:" + hp}},

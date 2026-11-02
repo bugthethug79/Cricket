@@ -21,21 +21,39 @@ type Config struct {
 	TrustProxy  bool
 	CreateToken string
 
-	MaxPeers    int
-	MaxRooms    int
-	RoomIdleTTL time.Duration
+	MaxPeers         int
+	MaxRooms         int
+	MaxRoomsPerIP    int
+	RoomIdleTTL      time.Duration
+	RoomEmptyTTL     time.Duration
+	HostGrace        time.Duration
+	BanByIP          bool
+	CreateRatePerMin int
+	CreateBurst      int
+	JoinRatePerMin   int
+	JoinBurst        int
+	IPv6PrefixLen    int
+	MaxConns         int
+	MaxConnsPerIP    int
+	SignalRatePerSec int
+	SignalBurst      int
+	ChatRatePerSec   int
+	ChatBurst        int
 
-	TURNEnabled       bool
-	TURNPublicIP      net.IP
-	TURNHost          string
-	TURNPort          int
-	TURNRealm         string
-	TURNSecret        string
-	TURNMinPort       int
-	TURNMaxPort       int
-	TURNCredTTL       time.Duration
-	ForceRelay        bool
-	AllowPrivatePeers bool
+	TURNEnabled          bool
+	TURNPublicIP         net.IP
+	TURNHost             string
+	TURNPort             int
+	TURNRealm            string
+	TURNSecret           string
+	TURNMinPort          int
+	TURNMaxPort          int
+	TURNCredTTL          time.Duration
+	ForceRelay           bool
+	AllowPrivatePeers    bool
+	TURNBindIP           bool
+	TURNMaxAllocsPerCred int
+	TURNMaxAllocsPerIP   int
 }
 
 func loadConfig() *Config {
@@ -46,20 +64,38 @@ func loadConfig() *Config {
 		TrustProxy:  envBool("TRUST_PROXY", false),
 		CreateToken: envStr("CREATE_TOKEN", ""),
 
-		MaxPeers:    envInt("MAX_PEERS_PER_ROOM", 12),
-		MaxRooms:    envInt("MAX_ROOMS", 1000),
-		RoomIdleTTL: envDur("ROOM_IDLE_TTL", 6*time.Hour),
+		MaxPeers:         envInt("MAX_PEERS_PER_ROOM", 12),
+		MaxRooms:         envInt("MAX_ROOMS", 1000),
+		MaxRoomsPerIP:    envInt("MAX_ROOMS_PER_IP", 20),
+		RoomIdleTTL:      envDur("ROOM_IDLE_TTL", 6*time.Hour),
+		RoomEmptyTTL:     envDur("ROOM_EMPTY_TTL", 5*time.Minute),
+		HostGrace:        envDur("HOST_GRACE", time.Minute),
+		BanByIP:          envBool("BAN_BY_IP", true),
+		CreateRatePerMin: envInt("CREATE_RATE_PER_MIN", 10),
+		CreateBurst:      envInt("CREATE_BURST", 5),
+		JoinRatePerMin:   envInt("JOIN_RATE_PER_MIN", 30),
+		JoinBurst:        envInt("JOIN_BURST", 15),
+		IPv6PrefixLen:    envInt("IPV6_PREFIX_LEN", 64),
+		MaxConns:         envInt("MAX_CONNS", 2000),
+		MaxConnsPerIP:    envInt("MAX_CONNS_PER_IP", 20),
+		SignalRatePerSec: envInt("SIGNAL_RATE_PER_SEC", 20),
+		SignalBurst:      envInt("SIGNAL_BURST", 200),
+		ChatRatePerSec:   envInt("CHAT_RATE_PER_SEC", 1),
+		ChatBurst:        envInt("CHAT_BURST", 10),
 
-		TURNEnabled:       envBool("TURN_ENABLED", true),
-		TURNHost:          envStr("TURN_HOST", ""),
-		TURNPort:          envInt("TURN_PORT", 3478),
-		TURNRealm:         envStr("TURN_REALM", "cricket"),
-		TURNSecret:        envStr("TURN_SECRET", ""),
-		TURNMinPort:       envInt("TURN_MIN_PORT", 49160),
-		TURNMaxPort:       envInt("TURN_MAX_PORT", 49200),
-		TURNCredTTL:       envDur("TURN_CRED_TTL", 12*time.Hour),
-		ForceRelay:        envBool("FORCE_RELAY", false),
-		AllowPrivatePeers: envBool("TURN_ALLOW_PRIVATE_PEERS", false),
+		TURNEnabled:          envBool("TURN_ENABLED", true),
+		TURNHost:             envStr("TURN_HOST", ""),
+		TURNPort:             envInt("TURN_PORT", 3478),
+		TURNRealm:            envStr("TURN_REALM", "cricket"),
+		TURNSecret:           envStr("TURN_SECRET", ""),
+		TURNMinPort:          envInt("TURN_MIN_PORT", 49160),
+		TURNMaxPort:          envInt("TURN_MAX_PORT", 49200),
+		TURNCredTTL:          envDur("TURN_CRED_TTL", 12*time.Hour),
+		ForceRelay:           envBool("FORCE_RELAY", false),
+		AllowPrivatePeers:    envBool("TURN_ALLOW_PRIVATE_PEERS", false),
+		TURNBindIP:           envBool("TURN_BIND_IP", true),
+		TURNMaxAllocsPerCred: envInt("TURN_MAX_ALLOCS_PER_CRED", 16),
+		TURNMaxAllocsPerIP:   envInt("TURN_MAX_ALLOCS_PER_IP", 32),
 	}
 
 	if c.TURNSecret == "" {
@@ -83,6 +119,60 @@ func loadConfig() *Config {
 	}
 	if c.MaxPeers < 2 {
 		c.MaxPeers = 2
+	}
+	if c.MaxRooms < 1 {
+		c.MaxRooms = 1
+	}
+	if c.MaxRoomsPerIP < 0 {
+		c.MaxRoomsPerIP = 0
+	}
+	if c.RoomEmptyTTL <= 0 {
+		c.RoomEmptyTTL = 5 * time.Minute
+	}
+	if c.RoomIdleTTL <= 0 {
+		c.RoomIdleTTL = 6 * time.Hour
+	}
+	if c.HostGrace < 0 {
+		c.HostGrace = 0
+	}
+	if c.IPv6PrefixLen < 0 || c.IPv6PrefixLen > 128 {
+		c.IPv6PrefixLen = 64
+	}
+	if c.CreateRatePerMin < 1 {
+		c.CreateRatePerMin = 1
+	}
+	if c.CreateBurst < 1 {
+		c.CreateBurst = 1
+	}
+	if c.JoinRatePerMin < 1 {
+		c.JoinRatePerMin = 1
+	}
+	if c.JoinBurst < 1 {
+		c.JoinBurst = 1
+	}
+	if c.MaxConns < 0 {
+		c.MaxConns = 0
+	}
+	if c.MaxConnsPerIP < 0 {
+		c.MaxConnsPerIP = 0
+	}
+	if c.SignalRatePerSec < 1 {
+		c.SignalRatePerSec = 1
+	}
+	if c.SignalBurst < 1 {
+		c.SignalBurst = 1
+	}
+	if c.ChatRatePerSec < 1 {
+		c.ChatRatePerSec = 1
+	}
+	if c.ChatBurst < 1 {
+		c.ChatBurst = 1
+	}
+	if c.TURNMaxAllocsPerCred < 0 {
+		c.TURNMaxAllocsPerCred = 0
+	}
+	if c.TURNMaxAllocsPerIP < 0 {
+		c.TURNMaxAllocsPerIP = 0
 	}
 	return c
 }

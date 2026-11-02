@@ -23,8 +23,10 @@ func main() {
 	cfg := loadConfig()
 	hub := NewHub(cfg)
 
+	var turnLimit *turnLimiter
 	if cfg.TURNEnabled {
-		ts, err := startTURN(cfg)
+		turnLimit = newTurnLimiter(cfg)
+		ts, err := startTURN(cfg, turnLimit)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -39,7 +41,7 @@ func main() {
 	}
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
-		Handler:           NewServer(cfg, hub).Handler(static),
+		Handler:           NewServer(cfg, hub, turnLimit).Handler(static),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
 		// Request logging is deliberately absent: no record of who joined what.

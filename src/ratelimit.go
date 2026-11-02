@@ -1,6 +1,8 @@
 package main
 
 import (
+	"net"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -62,4 +64,57 @@ func (l *KeyLimiter) Allow(key string) bool {
 		l.m[key] = b
 	}
 	return b.allow(l.rate, l.burst, time.Now())
+}
+
+func prefixKey(ipStr string, v6Bits int) string {
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return ipStr
+	}
+	if v4 := ip.To4(); v4 != nil {
+		return v4.String()
+	}
+	if v6Bits < 0 || v6Bits > 128 {
+		v6Bits = 64
+	}
+	return ip.Mask(net.CIDRMask(v6Bits, 128)).String() + "/" + strconv.Itoa(v6Bits)
+}
+
+type connLimiter struct {
+	mu        sync.Mutex
+	max       int
+	maxPerKey int
+	total     int
+	per       map[string]int
+}
+
+func newConnLimiter(max, maxPerKey int) *connLimiter {
+	return &connLimiter{max: max, maxPerKey: maxPerKey, per: map[string]int{}}
+}
+
+func (c *connLimiter) Allow(key string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.max > 0 && c.total >= c.max {
+		return false
+	}
+	if c.maxPerKey > 0 && c.per[key] >= c.maxPerKey {
+		return false
+	}
+	c.total++
+	c.per[key]++
+	return true
+}
+
+func (c *connLimiter) Release(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.total > 0 {
+		c.total--
+	}
+	if c.per[key] > 1 {
+		c.per[key]--
+	} else {
+		delete(c.per, key)
+	}
 }

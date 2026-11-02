@@ -1,38 +1,60 @@
-# CRICKET.
+# Cricket
 
-Cricket is a **AIO** calling app meant to replace *Jitsi meet* and *screengo* with a beautiful ui and a single binary!
+Cricket is a video conferencing, selfhostable, e2ee and decenteralized platform with privacy at the forefront!
 
-Features include
-- Link keyd (the key to join the call is within the link.)
-- E2EE chat.
-- Calling
-- Screen sharing
-- Camera sharing
-- Decenteralized.
-- Beatiful ui.
+> [!WARNING]
+> This is very alpha software! Host at your own disgression!
 
-## Configuration
+To build Cricket youll need ``make`` and a ``go-toolchain`` once youve gotten all of the requirements we can build!
 
-| Variable | Default | Description |
-|---|---|---|
-| `LISTEN_ADDR` | `:8080` | HTTP listen address |
-| `TLS_CERT` / `TLS_KEY` | – | Serve HTTPS directly |
-| `TRUST_PROXY` | `false` | Trust `X-Forwarded-For` for rate limiting (enable behind a reverse proxy) |
-| `CREATE_TOKEN` | – | If set, creating rooms requires this token. Joining never does |
-| `MAX_PEERS_PER_ROOM` | `12` | Maximum participants per room |
-| `MAX_ROOMS` | `1000` | Maximum rooms in memory |
-| `ROOM_IDLE_TTL` | `6h` | How long an empty room keeps its link alive |
-| `PUBLIC_IP` | auto | Public IPv4 (or hostname) used as the TURN relay address. **Set this** |
-| `TURN_ENABLED` | `true` | Run the built-in TURN server |
-| `TURN_HOST` | request host | Hostname put into the `turn:` URLs given to browsers |
-| `TURN_PORT` | `3478` | STUN/TURN port (udp + tcp) |
-| `TURN_MIN_PORT` / `TURN_MAX_PORT` | `49160` / `49200` | UDP relay port range |
-| `TURN_SECRET` | random | HMAC secret for TURN credentials |
-| `TURN_CRED_TTL` | `12h` | TURN credential lifetime |
-| `TURN_REALM` | `cricket` | TURN realm |
-| `TURN_ALLOW_PRIVATE_PEERS` | `false` | Allow relaying to private IPs (only for LAN-only deployments) |
-| `FORCE_RELAY` | `false` | Route all media through TURN to hide participants' IPs |
+```shell
+make build
+```
 
-## License
+## CONFIGURATION
+And their defaults are...
 
-MIT, see [LICENSE](LICENSE).
+## CONFIGURATION
+
+The environment variables and their default values are
+
+```shell
+LISTEN_ADDR=:8080
+TLS_CERT=
+TLS_KEY=
+TRUST_PROXY=false
+CREATE_TOKEN=
+
+MAX_PEERS_PER_ROOM=12
+MAX_ROOMS=1000
+MAX_ROOMS_PER_IP=20
+ROOM_IDLE_TTL=6h
+ROOM_EMPTY_TTL=5m
+HOST_GRACE=1m
+BAN_BY_IP=true
+CREATE_RATE_PER_MIN=10
+CREATE_BURST=5
+JOIN_RATE_PER_MIN=30
+JOIN_BURST=15
+IPV6_PREFIX_LEN=64
+MAX_CONNS=2000
+MAX_CONNS_PER_IP=20
+SIGNAL_RATE_PER_SEC=20
+SIGNAL_BURST=200
+CHAT_RATE_PER_SEC=1
+CHAT_BURST=10
+
+TURN_ENABLED=true
+TURN_HOST=
+TURN_PORT=3478
+TURN_REALM=cricket
+TURN_SECRET=
+TURN_MIN_PORT=49160
+TURN_MAX_PORT=49200
+TURN_CRED_TTL=12h
+FORCE_RELAY=false
+TURN_ALLOW_PRIVATE_PEERS=false
+TURN_BIND_IP=true
+TURN_MAX_ALLOCS_PER_CRED=16
+TURN_MAX_ALLOCS_PER_IP=32
+```

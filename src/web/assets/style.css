@@ -139,6 +139,15 @@ input::placeholder { color: inherit; opacity: .5; }
 .switch:checked { background: var(--accent-bg); }
 .switch:checked::after { transform: translateX(22px); }
 
+.colors { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.swatch {
+  width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%;
+  background: linear-gradient(hsl(var(--h) 70% 72%), hsl(var(--h) 60% 50%));
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / .15);
+  cursor: pointer;
+}
+.swatch[aria-pressed="true"] { outline: 2px solid var(--accent-bg); outline-offset: 2px; }
+
 /* ---------- boxed list ---------- */
 
 .boxed-list {
@@ -208,11 +217,16 @@ label.row { cursor: pointer; }
 .tiles {
   flex: 1; min-height: 0; overflow: auto;
   display: grid; gap: 12px; padding: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
-  grid-auto-rows: minmax(160px, 1fr);
-  align-content: center;
+  grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--rows, 1), minmax(120px, 1fr));
+  align-content: stretch;
 }
-.tiles.has-pin { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); grid-auto-rows: 120px; align-content: start; }
+.tiles.has-pin {
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-rows: none;
+  grid-auto-rows: 120px;
+  align-content: start;
+}
 .tiles.has-pin .tile.pinned { grid-column: 1 / -1; grid-row: span 4; order: -1; }
 
 .tile {
@@ -287,7 +301,14 @@ label.row { cursor: pointer; }
 .badge {
   position: absolute; top: -2px; right: 6px;
   min-width: 20px; height: 20px; padding: 0 6px; border-radius: 9999px;
-  background: var(--accent-bg); color: #fff; font-size: 12px; line-height: 20px; font-weight: 700;
+  background: var(--destructive-bg); color: #fff; font-size: 12px; line-height: 20px; font-weight: 700;
+  box-shadow: 0 0 0 2px var(--headerbar-bg);
+}
+.unread {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; margin-left: 4px;
+  border-radius: 9999px; background: var(--destructive-bg); color: #fff;
+  font-size: 11px; line-height: 1; font-weight: 700;
 }
 
 /* ---------- sidebar ---------- */
@@ -296,25 +317,24 @@ label.row { cursor: pointer; }
   width: 360px; flex: none;
   display: flex; flex-direction: column;
   background: var(--sidebar-bg); color: var(--sidebar-fg);
-  box-shadow: -1px 0 var(--headerbar-shade);
 }
 #call.panel-hidden .panel { display: none; }
 
-.headerbar.tabs { background: var(--sidebar-bg); justify-content: center; box-shadow: 0 1px var(--headerbar-shade); }
+.headerbar.tabs { background: var(--headerbar-bg); justify-content: center; box-shadow: 0 1px var(--headerbar-shade); }
 .linked { display: flex; }
 .switcher .tab {
   min-height: 34px; padding: 5px 16px; border: 0;
   background: var(--btn); color: inherit; font: inherit; font-weight: 700; cursor: pointer;
+  display: inline-flex; align-items: center;
 }
 .switcher .tab:first-child { border-radius: 6px 0 0 6px; }
 .switcher .tab:last-child { border-radius: 0 6px 6px 0; }
 .switcher .tab + .tab { box-shadow: inset 1px 0 var(--card-shade); }
 .switcher .tab:hover { background: var(--btn-hover); }
 .switcher .tab.active { background: var(--btn-active); }
-.count { opacity: var(--dim); font-weight: 400; }
 .headerbar .close { position: absolute; right: 6px; }
 
-.people-wrap { flex: 1; overflow: auto; padding: 12px; }
+.people-wrap { flex: 1; overflow: auto; padding: 12px; box-shadow: -1px 0 var(--headerbar-shade); }
 .people-wrap:has(#people[hidden]) { display: none; }
 .people li { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 12px; }
 .people li.speaking .avatar { box-shadow: 0 0 0 2px var(--sidebar-bg), 0 0 0 4px var(--success-bg); }
@@ -323,16 +343,31 @@ label.row { cursor: pointer; }
 .picons i { display: inline-flex; }
 .picons i.on { color: var(--accent); opacity: 1; }
 .picons i.off { color: var(--destructive); opacity: 1; }
+.kick-btn {
+  flex: none; padding: 4px 8px; border: 0; border-radius: 6px;
+  background: var(--btn); color: inherit; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.kick-btn:hover { background: var(--btn-hover); }
+.ban-btn {
+  flex: none; padding: 4px 8px; border: 0; border-radius: 6px;
+  background: color-mix(in srgb, var(--destructive-bg) 16%, transparent);
+  color: var(--destructive); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.ban-btn:hover { background: color-mix(in srgb, var(--destructive-bg) 28%, transparent); }
 
-.chat { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.chat { flex: 1; min-height: 0; display: flex; flex-direction: column; box-shadow: -1px 0 var(--headerbar-shade); }
 .messages { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .sys { text-align: center; margin: 0; font-size: 13px; opacity: var(--dim); }
-.msg { max-width: 85%; align-self: flex-start; }
-.msg.mine { align-self: flex-end; }
+.msg {
+  width: fit-content; max-width: 85%; align-self: flex-start;
+  display: flex; flex-direction: column; align-items: flex-start;
+}
+.msg.mine { align-self: flex-end; align-items: flex-end; }
 .mhead { display: flex; gap: 8px; align-items: baseline; font-size: 13px; padding: 0 4px; }
 .msg.mine .mhead { justify-content: flex-end; }
 .mhead time { opacity: var(--dim); font-size: 12px; }
 .mbody {
+  width: fit-content; max-width: 100%;
   margin-top: 3px; padding: 8px 12px; border-radius: 16px;
   background: var(--card-bg); box-shadow: 0 1px 3px var(--card-shade);
   white-space: pre-wrap; overflow-wrap: anywhere;
@@ -354,9 +389,10 @@ label.row { cursor: pointer; }
 
 @media (max-width: 899px) {
   .panel { position: fixed; inset: 0; width: auto; z-index: 5; box-shadow: none; }
+  .people-wrap, .chat { box-shadow: none; }
   .controls { gap: 4px; }
   .ctl { min-width: 0; flex: 1; max-width: 76px; }
   .ctl .ic { width: 48px; height: 48px; }
   .ctl .lbl { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-  .tiles { grid-template-columns: 1fr; grid-auto-rows: minmax(180px, 1fr); }
+  .tiles { gap: 8px; padding: 8px; }
 }

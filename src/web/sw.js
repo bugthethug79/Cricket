@@ -1,14 +1,29 @@
 'use strict';
 
-const VERSION = 'cricket-v1';
+const VERSION = 'cricket-0.1.0-2';
 const SHELL = [
   '/',
   '/j',
   '/assets/style.css',
-  '/assets/app.js',
+  '/assets/js/app.js',
+  '/assets/js/call.js',
+  '/assets/js/chat.js',
+  '/assets/js/crypto.js',
+  '/assets/js/dom.js',
+  '/assets/js/invite.js',
+  '/assets/js/landing.js',
+  '/assets/js/media.js',
+  '/assets/js/rtc.js',
+  '/assets/js/socket.js',
+  '/assets/js/sound.js',
+  '/assets/js/speaking.js',
+  '/assets/js/state.js',
+  '/assets/js/storage.js',
+  '/assets/js/ui.js',
+  '/assets/sounds/join.wav',
+  '/assets/sounds/leave.wav',
+  '/assets/sounds/notify.wav',
   '/manifest.webmanifest',
-  '/assets/icons/icon-192.png', // Heh bug... Add logo.... Resize logo....
-  '/assets/icons/icon-512.png',
   '/assets/icons/chat.svg',
   '/assets/icons/close.svg',
   '/assets/icons/leave.svg',

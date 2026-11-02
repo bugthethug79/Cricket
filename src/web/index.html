@@ -56,6 +56,10 @@
           <span class="row-title">Name</span>
           <input id="nameInput" maxlength="32" autocomplete="nickname" placeholder="Guest" required>
         </label>
+        <div class="row">
+          <span class="row-title">Color</span>
+          <div id="colorPicker" class="colors" role="group" aria-label="Avatar color"></div>
+        </div>
       </div>
       <button class="btn pill suggested" type="submit">Join</button>
       <p id="joinErr" class="error" hidden></p>
@@ -94,8 +98,8 @@
   <aside id="panel" class="panel">
     <header class="headerbar tabs">
       <div class="linked switcher">
-        <button class="tab active" data-tab="people">People <span id="peopleCount" class="count"></span></button>
-        <button class="tab" data-tab="chat">Chat</button>
+        <button class="tab active" data-tab="people">People</button>
+        <button class="tab" data-tab="chat">Chat <span id="tabUnread" class="unread" hidden></span></button>
       </div>
       <button id="panelClose" class="btn flat circular close" title="Close">
         <span class="icon ic-close"></span>
@@ -135,6 +139,6 @@
 </section>
 
 <div id="toast" class="toast" hidden></div>
-<script src="/assets/app.js"></script>
+<script type="module" src="/assets/js/app.js"></script>
 </body>
 </html>
