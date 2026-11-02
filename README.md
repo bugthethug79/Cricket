@@ -4,7 +4,7 @@ Cricket is a **AIO** calling app meant to replace *Jitsi meet* and *screengo* wi
 
 Features include
 - Link keyd (the key to join the call is within the link.)
-- EE2E chat.
+- E2EE chat.
 - Calling
 - Screen sharing
 - Camera sharing
