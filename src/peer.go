@@ -18,7 +18,6 @@ const (
 	pingPeriod     = 25 * time.Second
 	joinWait       = 10 * time.Second
 	maxMessageSize = 64 << 10 // SDP offers with many tracks can reach ~20 KB
-	maxChatSize    = 12 << 10 // encrypted chat payload
 	maxNameLen     = 32
 )
 
@@ -27,6 +26,9 @@ type PeerState struct {
 	Cam          bool   `json:"cam"`
 	Screen       bool   `json:"screen"`
 	ScreenStream string `json:"screen_stream,omitempty"`
+	Deafened     bool   `json:"deafened,omitempty"`
+	HostMuted    bool   `json:"host_muted,omitempty"`
+	HostDeafened bool   `json:"host_deafened,omitempty"`
 }
 
 type PeerInfo struct {
@@ -58,8 +60,7 @@ type Peer struct {
 	kickCh    chan kickMsg
 	closeOnce sync.Once
 
-	msgLimit  bucket
-	chatLimit bucket
+	msgLimit bucket
 }
 
 func (p *Peer) info() PeerInfo {
@@ -136,6 +137,8 @@ type inMsg struct {
 	To       string          `json:"to,omitempty"`
 	Data     json.RawMessage `json:"data,omitempty"`
 	State    *PeerState      `json:"state,omitempty"`
+	Action   string          `json:"action,omitempty"`
+	On       bool            `json:"on,omitempty"`
 }
 
 func cleanName(s string) string {
@@ -204,21 +207,21 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	conn.SetReadLimit(maxMessageSize)
 	conn.SetReadDeadline(time.Now().Add(joinWait))
 
-	fail := func(msg string) {
+	fail := func(msg string, code int) {
 		conn.SetWriteDeadline(time.Now().Add(writeWait))
 		conn.WriteMessage(websocket.TextMessage, mustJSON(map[string]string{"t": "error", "msg": msg}))
-		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.ClosePolicyViolation, ""))
+		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(code, ""))
 		conn.Close()
 	}
 
 	var join inMsg
 	if err := conn.ReadJSON(&join); err != nil || join.T != "join" {
-		fail("Expected join message.")
+		fail("Expected join message.", websocket.ClosePolicyViolation)
 		return
 	}
 	token, err := base64.RawURLEncoding.DecodeString(join.Auth)
 	if err != nil || len(token) != 32 || len(join.Room) > 64 {
-		fail(errInvalidLink.Error())
+		fail(errInvalidLink.Error(), websocket.ClosePolicyViolation)
 		return
 	}
 	var hostToken []byte
@@ -256,13 +259,18 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		})
 	})
 	if err != nil {
-		fail(err.Error())
+		if err == errCallEnded {
+			fail(err.Error(), 4005)
+		} else {
+			fail(err.Error(), websocket.ClosePolicyViolation)
+		}
 		return
 	}
 
 	go p.writePump()
 	defer func() {
 		room.Leave(p)
+		s.hub.FinishIfEmpty(room)
 		p.close()
 	}()
 
@@ -288,16 +296,13 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			room.SendTo(m.To, mustJSON(map[string]any{"t": "signal", "from": p.ID, "data": m.Data}))
-		case "chat":
-			if len(m.Data) == 0 || len(m.Data) > maxChatSize || !p.chatLimit.allow(float64(s.cfg.ChatRatePerSec), float64(s.cfg.ChatBurst), now) {
-				continue
-			}
-			room.Broadcast(mustJSON(map[string]any{
-				"t": "chat", "from": p.ID, "name": p.Name, "ts": now.UnixMilli(), "data": m.Data,
-			}), p.ID)
 		case "state":
 			if m.State != nil {
 				room.UpdateState(p, sanitizeState(*m.State))
+			}
+		case "moderate":
+			if m.To != "" && (m.Action == "mute" || m.Action == "deafen") {
+				room.Moderate(p.ID, m.To, m.Action, m.On)
 			}
 		case "kick":
 			if m.To != "" {
@@ -307,8 +312,12 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			if m.To != "" {
 				room.Kick(p.ID, p.IP, m.To, true, s.cfg.BanByIP)
 			}
-		case "end":
-			s.hub.EndRoom(room.id, p.ID)
+		case "promote":
+			if m.To != "" {
+				room.Promote(p.ID, m.To)
+			}
+		case "ping":
+			p.enqueue(mustJSON(map[string]string{"t": "pong"}))
 		}
 	}
 }

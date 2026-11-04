@@ -24,9 +24,7 @@ type Config struct {
 	MaxPeers         int
 	MaxRooms         int
 	MaxRoomsPerIP    int
-	RoomIdleTTL      time.Duration
 	RoomEmptyTTL     time.Duration
-	HostGrace        time.Duration
 	BanByIP          bool
 	CreateRatePerMin int
 	CreateBurst      int
@@ -37,8 +35,6 @@ type Config struct {
 	MaxConnsPerIP    int
 	SignalRatePerSec int
 	SignalBurst      int
-	ChatRatePerSec   int
-	ChatBurst        int
 
 	TURNEnabled          bool
 	TURNPublicIP         net.IP
@@ -67,9 +63,7 @@ func loadConfig() *Config {
 		MaxPeers:         envInt("MAX_PEERS_PER_ROOM", 12),
 		MaxRooms:         envInt("MAX_ROOMS", 1000),
 		MaxRoomsPerIP:    envInt("MAX_ROOMS_PER_IP", 20),
-		RoomIdleTTL:      envDur("ROOM_IDLE_TTL", 6*time.Hour),
 		RoomEmptyTTL:     envDur("ROOM_EMPTY_TTL", 5*time.Minute),
-		HostGrace:        envDur("HOST_GRACE", time.Minute),
 		BanByIP:          envBool("BAN_BY_IP", true),
 		CreateRatePerMin: envInt("CREATE_RATE_PER_MIN", 10),
 		CreateBurst:      envInt("CREATE_BURST", 5),
@@ -80,8 +74,6 @@ func loadConfig() *Config {
 		MaxConnsPerIP:    envInt("MAX_CONNS_PER_IP", 20),
 		SignalRatePerSec: envInt("SIGNAL_RATE_PER_SEC", 20),
 		SignalBurst:      envInt("SIGNAL_BURST", 200),
-		ChatRatePerSec:   envInt("CHAT_RATE_PER_SEC", 1),
-		ChatBurst:        envInt("CHAT_BURST", 10),
 
 		TURNEnabled:          envBool("TURN_ENABLED", true),
 		TURNHost:             envStr("TURN_HOST", ""),
@@ -129,12 +121,6 @@ func loadConfig() *Config {
 	if c.RoomEmptyTTL <= 0 {
 		c.RoomEmptyTTL = 5 * time.Minute
 	}
-	if c.RoomIdleTTL <= 0 {
-		c.RoomIdleTTL = 6 * time.Hour
-	}
-	if c.HostGrace < 0 {
-		c.HostGrace = 0
-	}
 	if c.IPv6PrefixLen < 0 || c.IPv6PrefixLen > 128 {
 		c.IPv6PrefixLen = 64
 	}
@@ -161,12 +147,6 @@ func loadConfig() *Config {
 	}
 	if c.SignalBurst < 1 {
 		c.SignalBurst = 1
-	}
-	if c.ChatRatePerSec < 1 {
-		c.ChatRatePerSec = 1
-	}
-	if c.ChatBurst < 1 {
-		c.ChatBurst = 1
 	}
 	if c.TURNMaxAllocsPerCred < 0 {
 		c.TURNMaxAllocsPerCred = 0

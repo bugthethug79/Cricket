@@ -7,50 +7,54 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"io"
 	"sync"
 	"time"
+
+	"golang.org/x/crypto/hkdf"
 )
 
 var (
-	// errInvalidLink covers both "no such room" and "wrong key" so the
-	// server never reveals whether a room id exists.
 	errInvalidLink  = errors.New("This link is invalid or the room has expired.")
+	errCallEnded    = errors.New("This call has ended.")
 	errRoomFull     = errors.New("This room is full.")
 	errTooManyRooms = errors.New("The server has reached its room limit. Try again later.")
 	errBanned       = errors.New("You were banned from this room.")
 )
 
-// Hub holds every live room in memory. Nothing is ever written to disk:
-// restarting the server destroys all rooms.
+const maxUsedRooms = 10000
+
 type Hub struct {
 	cfg        *Config
 	mu         sync.Mutex
 	rooms      map[string]*Room
 	roomsByKey map[string]int
+	used       map[string]struct{}
+	usedOrder  []string
 }
 
-// Room stores only a SHA-256 verifier of the client-derived auth token. The
-// raw link key never reaches the server (it lives in the URL fragment), and
-// chat is encrypted with a separate key derived from it in the browser.
 type Room struct {
-	id            string
-	verifier      [32]byte
-	hostVerifier  [32]byte
-	hostID        string
-	ownerKey      string
-	everHosted    bool
-	createdAt     time.Time
-	mu            sync.Mutex
-	peers         map[string]*Peer
-	order         []string
-	bans          map[string]struct{}
-	emptySince    time.Time
-	hostLeftSince time.Time
-	closed        bool
+	id           string
+	verifier     [32]byte
+	hostVerifier [32]byte
+	hostID       string
+	ownerKey     string
+	everHosted   bool
+	createdAt    time.Time
+	mu           sync.Mutex
+	peers        map[string]*Peer
+	order        []string
+	bans         map[string]struct{}
+	closed       bool
 }
 
 func NewHub(cfg *Config) *Hub {
-	h := &Hub{cfg: cfg, rooms: map[string]*Room{}, roomsByKey: map[string]int{}}
+	h := &Hub{
+		cfg:        cfg,
+		rooms:      map[string]*Room{},
+		roomsByKey: map[string]int{},
+		used:       map[string]struct{}{},
+	}
 	go h.janitor()
 	return h
 }
@@ -67,45 +71,73 @@ func randToken(n int) string {
 	return base64.RawURLEncoding.EncodeToString(randBytes(n))
 }
 
-func (h *Hub) CreateRoom(verifier [32]byte, ownerKey string) (string, string, error) {
+func authVerifier(key []byte) [32]byte {
+	auth := make([]byte, 32)
+	if _, err := io.ReadFull(hkdf.New(sha256.New, key, []byte("cricket/v1"), []byte("auth")), auth); err != nil {
+		panic(err)
+	}
+	return sha256.Sum256(auth)
+}
+
+func (h *Hub) CreateRoom(ownerKey string) (string, string, string, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if len(h.rooms) >= h.cfg.MaxRooms {
-		return "", "", errTooManyRooms
+		return "", "", "", errTooManyRooms
 	}
 	if h.cfg.MaxRoomsPerIP > 0 && h.roomsByKey[ownerKey] >= h.cfg.MaxRoomsPerIP {
-		return "", "", errTooManyRooms
+		return "", "", "", errTooManyRooms
 	}
-	hostBytes := randBytes(32)
+	key := randBytes(32)
+	host := randBytes(32)
 	id := randToken(32)
 	h.rooms[id] = &Room{
 		id:           id,
-		verifier:     verifier,
-		hostVerifier: sha256.Sum256(hostBytes),
+		verifier:     authVerifier(key),
+		hostVerifier: sha256.Sum256(host),
 		ownerKey:     ownerKey,
 		peers:        map[string]*Peer{},
 		bans:         map[string]struct{}{},
 		createdAt:    time.Now(),
-		emptySince:   time.Now(),
 	}
 	h.roomsByKey[ownerKey]++
-	return id, base64.RawURLEncoding.EncodeToString(hostBytes), nil
+	return id, base64.RawURLEncoding.EncodeToString(key), base64.RawURLEncoding.EncodeToString(host), nil
 }
 
-// Join authenticates the peer, adds it to the room and queues the welcome
-// message (built from the current member list) before any broadcast can reach
-// the new peer, so its view of the room is always consistent.
+func (h *Hub) RoomStatus(id string) string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if r, ok := h.rooms[id]; ok {
+		r.mu.Lock()
+		closed := r.closed
+		r.mu.Unlock()
+		if !closed {
+			return "live"
+		}
+		return "ended"
+	}
+	if _, ok := h.used[id]; ok {
+		return "ended"
+	}
+	return "invalid"
+}
+
 func (h *Hub) Join(roomID string, authToken, hostToken []byte, p *Peer, welcome func(PeerInfo, []PeerInfo, string) []byte) (*Room, error) {
 	h.mu.Lock()
 	r := h.rooms[roomID]
+	_, ended := h.used[roomID]
 	h.mu.Unlock()
 
-	sum := sha256.Sum256(authToken)
 	if r == nil {
-		// Burn comparable time so a missing room looks like a bad key.
+		if ended {
+			return nil, errCallEnded
+		}
+		sum := sha256.Sum256(authToken)
 		subtle.ConstantTimeCompare(sum[:], make([]byte, 32))
 		return nil, errInvalidLink
 	}
+
+	sum := sha256.Sum256(authToken)
 	if subtle.ConstantTimeCompare(sum[:], r.verifier[:]) != 1 {
 		return nil, errInvalidLink
 	}
@@ -113,11 +145,11 @@ func (h *Hub) Join(roomID string, authToken, hostToken []byte, p *Peer, welcome 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.closed {
-		return nil, errInvalidLink
+		return nil, errCallEnded
 	}
 
 	isHost := false
-	if len(hostToken) == 32 {
+	if r.hostID == "" && len(hostToken) == 32 {
 		hostSum := sha256.Sum256(hostToken)
 		isHost = subtle.ConstantTimeCompare(hostSum[:], r.hostVerifier[:]) == 1
 	}
@@ -131,7 +163,6 @@ func (h *Hub) Join(roomID string, authToken, hostToken []byte, p *Peer, welcome 
 	oldHost := r.hostID
 	if isHost {
 		r.hostID = p.ID
-		r.hostLeftSince = time.Time{}
 		r.everHosted = true
 	}
 
@@ -148,7 +179,6 @@ func (h *Hub) Join(roomID string, authToken, hostToken []byte, p *Peer, welcome 
 	if oldHost != r.hostID {
 		r.broadcastLocked(hostMessage(r.hostID), "")
 	}
-	r.emptySince = time.Time{}
 	return r, nil
 }
 
@@ -165,15 +195,45 @@ func (r *Room) Leave(p *Peer) {
 			break
 		}
 	}
-	if len(r.peers) == 0 {
-		r.emptySince = time.Now()
-	}
 	r.broadcastLocked(mustJSON(map[string]any{"t": "peer-leave", "id": p.ID}), "")
-	if r.hostID == p.ID {
-		r.hostID = ""
-		r.hostLeftSince = time.Now()
-		r.broadcastLocked(hostMessage(""), "")
+	if r.hostID != p.ID {
+		return
 	}
+	r.hostID = ""
+	r.hostVerifier = [32]byte{}
+	if len(r.peers) == 0 {
+		return
+	}
+	next := r.peers[r.order[0]]
+	r.hostID = next.ID
+	r.broadcastLocked(hostMessage(next.ID), "")
+}
+
+func (r *Room) Promote(hostID, targetID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.hostID != hostID || targetID == "" || targetID == hostID {
+		return
+	}
+	if _, ok := r.peers[targetID]; !ok {
+		return
+	}
+	r.hostID = targetID
+	r.hostVerifier = [32]byte{}
+	r.broadcastLocked(hostMessage(targetID), "")
+}
+
+func (r *Room) Moderate(hostID, targetID, action string, on bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.hostID != hostID || targetID == "" || targetID == hostID {
+		return
+	}
+	p, ok := r.peers[targetID]
+	if !ok {
+		return
+	}
+	p.enqueue(mustJSON(map[string]any{"t": "moderate", "action": action, "on": on}))
 }
 
 func (r *Room) Kick(hostID, hostIP, targetID string, ban, banIP bool) {
@@ -227,20 +287,17 @@ func (r *Room) closeLocked(code int, text string) {
 	}
 }
 
-func (h *Hub) EndRoom(roomID, hostID string) {
+func (h *Hub) FinishIfEmpty(r *Room) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	r := h.rooms[roomID]
-	if r == nil {
-		return
-	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.closed || r.hostID != hostID {
+	if len(r.peers) > 0 || r.closed {
 		return
 	}
-	r.closeLocked(4002, "host-left")
-	h.dropRoomLocked(roomID, r)
+	r.closed = true
+	h.dropRoomLocked(r.id, r)
+	h.markUsedLocked(r.id)
 }
 
 func (h *Hub) dropRoomLocked(id string, r *Room) {
@@ -255,10 +312,17 @@ func (h *Hub) dropRoomLocked(id string, r *Room) {
 	}
 }
 
-func (r *Room) Broadcast(msg []byte, except string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.broadcastLocked(msg, except)
+func (h *Hub) markUsedLocked(id string) {
+	if _, ok := h.used[id]; ok {
+		return
+	}
+	h.used[id] = struct{}{}
+	h.usedOrder = append(h.usedOrder, id)
+	if len(h.usedOrder) > maxUsedRooms {
+		oldest := h.usedOrder[0]
+		h.usedOrder = h.usedOrder[1:]
+		delete(h.used, oldest)
+	}
 }
 
 func (r *Room) broadcastLocked(msg []byte, except string) {
@@ -284,28 +348,27 @@ func (r *Room) UpdateState(p *Peer, s PeerState) {
 	r.broadcastLocked(mustJSON(map[string]any{"t": "peer-update", "peer": p.info()}), p.ID)
 }
 
-// janitor deletes rooms that have had nobody in them for RoomIdleTTL.
 func (h *Hub) janitor() {
 	for range time.Tick(5 * time.Second) {
 		now := time.Now()
 		h.mu.Lock()
 		for id, r := range h.rooms {
 			r.mu.Lock()
+			if r.closed {
+				r.mu.Unlock()
+				continue
+			}
+			if r.everHosted && len(r.peers) == 0 {
+				r.closed = true
+				h.dropRoomLocked(id, r)
+				h.markUsedLocked(id)
+				r.mu.Unlock()
+				continue
+			}
 			if !r.everHosted && now.Sub(r.createdAt) > h.cfg.RoomEmptyTTL {
 				r.closeLocked(4003, "room-expired")
 				h.dropRoomLocked(id, r)
-				r.mu.Unlock()
-				continue
-			}
-			if !r.hostLeftSince.IsZero() && now.Sub(r.hostLeftSince) > h.cfg.HostGrace {
-				r.closeLocked(4002, "host-left")
-				h.dropRoomLocked(id, r)
-				r.mu.Unlock()
-				continue
-			}
-			if len(r.peers) == 0 && now.Sub(r.emptySince) > h.cfg.RoomIdleTTL {
-				r.closeLocked(4003, "room-expired")
-				h.dropRoomLocked(id, r)
+				h.markUsedLocked(id)
 			}
 			r.mu.Unlock()
 		}

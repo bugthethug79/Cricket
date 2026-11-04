@@ -1,6 +1,6 @@
 import { $, show, COLORS } from './dom.js';
 import { store } from './storage.js';
-import { b64u, deriveKeys } from './crypto.js';
+import { b64u } from './crypto.js';
 import { makeInvite } from './invite.js';
 import { startCall } from './call.js';
 
@@ -17,17 +17,14 @@ export async function initLanding() {
     button.disabled = true;
     error.hidden = true;
     try {
-      const key = crypto.getRandomValues(new Uint8Array(64));
-      const { auth } = await deriveKeys(key);
-      const verifier = new Uint8Array(await crypto.subtle.digest('SHA-256', auth));
       const response = await fetch('/api/v1/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ verifier: b64u.enc(verifier), token: $('#createToken').value }),
+        body: JSON.stringify({ token: $('#createToken').value }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || 'Could not create a room.');
-      location.href = makeInvite(body.room, key, body.host);
+      location.href = makeInvite(body.room, b64u.dec(body.key), body.host);
     } catch (err) {
       error.textContent = err.message;
       error.hidden = false;
@@ -37,7 +34,33 @@ export async function initLanding() {
   };
 }
 
-export function initPrejoin(invite) {
+async function roomStatus(room) {
+  try {
+    const response = await fetch(`/api/v1/rooms/${encodeURIComponent(room)}`);
+    if (!response.ok) return 'unknown';
+    const body = await response.json();
+    return body.status || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
+export async function initPrejoin(invite) {
+  const status = await roomStatus(invite.room);
+  if (status === 'ended') {
+    show('ended');
+    $('#endedTitle').textContent = 'This call has ended';
+    $('#endedMsg').textContent = 'Everyone has left this call.';
+    $('#rejoinBtn').hidden = true;
+    return;
+  }
+  if (status === 'invalid') {
+    show('ended');
+    $('#endedTitle').textContent = 'Invalid link';
+    $('#endedMsg').textContent = 'This invite link is incomplete or malformed. Make sure you copied all of it.';
+    $('#rejoinBtn').hidden = true;
+    return;
+  }
   show('prejoin');
   if (invite.host) store.set('host.' + invite.room, invite.host);
   try { history.replaceState(null, '', makeInvite(invite.room, invite.key)); } catch { }

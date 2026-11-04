@@ -1,5 +1,3 @@
-/* Adwaita (libadwaita) look: named colors follow the libadwaita stylesheet. */
-
 :root {
   --window-bg: #fafafb;
   --window-fg: rgb(0 0 6 / .8);
@@ -74,6 +72,8 @@ body {
 .ic-camera-off { --icon: url("/assets/icons/camera-off.svg"); }
 .ic-mic { --icon: url("/assets/icons/mic.svg"); }
 .ic-mic-off { --icon: url("/assets/icons/mic-off.svg"); }
+.ic-headphones { --icon: url("/assets/icons/headphones.svg"); }
+.ic-headphones-off { --icon: url("/assets/icons/headphones-off.svg"); }
 .ic-screen { --icon: url("/assets/icons/screen.svg"); }
 .ic-chat { --icon: url("/assets/icons/chat.svg"); }
 .ic-leave { --icon: url("/assets/icons/leave.svg"); }
@@ -287,9 +287,10 @@ label.row { cursor: pointer; }
 .ctl:hover .ic { background: var(--btn-hover); }
 .ctl:active .ic { background: var(--btn-active); }
 .ctl .ic .icon { width: 20px; height: 20px; }
+#flipBtn .ic .icon { transform: scaleX(-1); }
 .ctl .lbl { opacity: .8; }
-.ctl.alert .ic { background: color-mix(in srgb, var(--destructive-bg) 18%, transparent); color: var(--destructive); }
-.ctl.alert:hover .ic { background: color-mix(in srgb, var(--destructive-bg) 28%, transparent); }
+.ctl.alert .ic, .ctl.locked .ic { background: color-mix(in srgb, var(--destructive-bg) 18%, transparent); color: var(--destructive); }
+.ctl.alert:hover .ic, .ctl.locked:hover .ic { background: color-mix(in srgb, var(--destructive-bg) 28%, transparent); }
 .ctl.active .ic, .ctl.danger .ic { color: #fff; }
 .ctl.active .ic { background: var(--accent-bg); }
 .ctl.danger .ic { background: var(--destructive-bg); }
@@ -338,22 +339,49 @@ label.row { cursor: pointer; }
 .people-wrap:has(#people[hidden]) { display: none; }
 .people li { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 12px; }
 .people li.speaking .avatar { box-shadow: 0 0 0 2px var(--sidebar-bg), 0 0 0 4px var(--success-bg); }
+.people li.moderated .pname { color: var(--destructive); }
 .pname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .picons { display: flex; gap: 8px; opacity: .8; }
 .picons i { display: inline-flex; }
 .picons i.on { color: var(--accent); opacity: 1; }
 .picons i.off { color: var(--destructive); opacity: 1; }
-.kick-btn {
-  flex: none; padding: 4px 8px; border: 0; border-radius: 6px;
-  background: var(--btn); color: inherit; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+.pactions { display: none; gap: 2px; margin-left: 2px; }
+.paction {
+  display: grid; place-items: center; width: 28px; height: 28px;
+  padding: 0; border: 0; border-radius: 50%;
+  background: none; color: inherit; font: inherit; cursor: pointer;
 }
-.kick-btn:hover { background: var(--btn-hover); }
-.ban-btn {
-  flex: none; padding: 4px 8px; border: 0; border-radius: 6px;
-  background: color-mix(in srgb, var(--destructive-bg) 16%, transparent);
-  color: var(--destructive); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+.paction .icon { width: 16px; height: 16px; opacity: .8; }
+.paction:hover { background: var(--btn); }
+.paction.danger { color: var(--destructive); }
+.paction.danger:hover { background: color-mix(in srgb, var(--destructive-bg) 16%, transparent); }
+.people li.has-actions:hover .picons { display: none; }
+.people li.has-actions:hover .pactions { display: flex; }
+@media (hover: none) {
+  .people li.has-actions .picons { display: none; }
+  .people li.has-actions .pactions { display: flex; }
 }
-.ban-btn:hover { background: color-mix(in srgb, var(--destructive-bg) 28%, transparent); }
+.context-menu {
+  position: fixed; z-index: 20; min-width: 190px; max-width: calc(100vw - 16px); padding: 6px;
+  background: var(--window-bg); color: var(--window-fg);
+  border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 8px 24px rgb(0 0 6 / .25), 0 2px 6px rgb(0 0 6 / .15);
+}
+.context-title {
+  padding: 6px 10px 8px; font-size: 13px; font-weight: 700;
+  max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.context-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 7px 10px; border: 0; border-radius: 8px;
+  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.context-item .icon { opacity: .75; }
+.context-item:hover { background: var(--btn); }
+.context-item.danger { color: var(--destructive); }
+.context-item.danger .icon { opacity: 1; }
+.context-item.danger:hover { background: color-mix(in srgb, var(--destructive-bg) 16%, transparent); }
+.context-separator { height: 1px; margin: 4px 8px; background: var(--border); }
 
 .chat { flex: 1; min-height: 0; display: flex; flex-direction: column; box-shadow: -1px 0 var(--headerbar-shade); }
 .messages { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
@@ -363,6 +391,7 @@ label.row { cursor: pointer; }
   display: flex; flex-direction: column; align-items: flex-start;
 }
 .msg.mine { align-self: flex-end; align-items: flex-end; }
+.msg.grouped { margin-top: -6px; }
 .mhead { display: flex; gap: 8px; align-items: baseline; font-size: 13px; padding: 0 4px; }
 .msg.mine .mhead { justify-content: flex-end; }
 .mhead time { opacity: var(--dim); font-size: 12px; }
@@ -373,6 +402,7 @@ label.row { cursor: pointer; }
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
 .msg.mine .mbody { background: var(--accent-bg); color: var(--accent-fg); }
+.msg.colored .mbody { background: hsl(var(--h) 60% 50% / .24); }
 .composer { display: flex; gap: 6px; padding: 6px; background: var(--sidebar-bg); box-shadow: 0 -1px var(--headerbar-shade); }
 .composer input { flex: 1; min-width: 0; border-radius: 9999px; padding: 0 14px; }
 

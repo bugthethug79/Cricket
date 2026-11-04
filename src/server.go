@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/subtle"
-	"encoding/base64"
 	"encoding/json"
 	"io/fs"
 	"net"
@@ -76,6 +75,7 @@ func (s *Server) Handler(static fs.FS) http.Handler {
 	})
 	mux.HandleFunc("GET /api/v1/config", s.handleConfig)
 	mux.HandleFunc("POST /api/v1/rooms", s.handleCreateRoom)
+	mux.HandleFunc("GET /api/v1/rooms/{id}", s.handleRoomStatus)
 	mux.HandleFunc("GET /ws", s.handleWS)
 	return securityHeaders(mux)
 }
@@ -139,8 +139,7 @@ func (s *Server) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Verifier string `json:"verifier"`
-		Token    string `json:"token"`
+		Token string `json:"token"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Bad request."})
@@ -151,17 +150,21 @@ func (s *Server) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "Invalid creation token."})
 		return
 	}
-	v, err := base64.RawURLEncoding.DecodeString(req.Verifier)
-	if err != nil || len(v) != 32 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Bad verifier."})
-		return
-	}
-	id, hostToken, err := s.hub.CreateRoom([32]byte(v), s.clientKey(r))
+	id, key, hostToken, err := s.hub.CreateRoom(s.clientKey(r))
 	if err != nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"room": id, "host": hostToken})
+	writeJSON(w, http.StatusOK, map[string]string{"room": id, "key": key, "host": hostToken})
+}
+
+func (s *Server) handleRoomStatus(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" || len(id) > 64 {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "invalid"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": s.hub.RoomStatus(id)})
 }
 
 type iceServer struct {

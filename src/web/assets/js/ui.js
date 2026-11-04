@@ -3,6 +3,72 @@ import { $, initial, hue, setIcon, ICONS } from './dom.js';
 import { send } from './socket.js';
 
 const tiles = new Map();
+const menu = $('#contextMenu');
+const coarsePointer = matchMedia('(pointer: coarse)');
+
+function hideContextMenu() {
+  if (menu) menu.hidden = true;
+}
+
+function showPersonMenu(event, person) {
+  menu.replaceChildren();
+  const title = document.createElement('div');
+  title.className = 'context-title';
+  title.textContent = person.name;
+  menu.append(title);
+
+  const item = (label, icon, danger, action) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'context-item' + (danger ? ' danger' : '');
+    const glyph = document.createElement('span');
+    glyph.className = 'icon ' + icon;
+    const text = document.createElement('span');
+    text.textContent = label;
+    button.append(glyph, text);
+    button.onclick = () => {
+      hideContextMenu();
+      action();
+    };
+    menu.append(button);
+  };
+
+  item('Make host', 'ic-user', false, () => {
+    if (confirm(`Make ${person.name} the host? They will get host controls and you will lose yours.`)) {
+      send({ t: 'promote', to: person.id });
+    }
+  });
+  const separator = document.createElement('div');
+  separator.className = 'context-separator';
+  menu.append(separator);
+  item('Kick', 'ic-leave', false, () => {
+    if (confirm(`Disconnect ${person.name}? They can rejoin.`)) {
+      send({ t: 'kick', to: person.id });
+    }
+  });
+  item('Ban', 'ic-close', true, () => {
+    if (confirm(`Ban ${person.name} from this room?`)) {
+      send({ t: 'ban', to: person.id });
+    }
+  });
+
+  menu.hidden = false;
+  const rect = menu.getBoundingClientRect();
+  menu.style.left = `${Math.max(8, Math.min(event.clientX, innerWidth - rect.width - 8))}px`;
+  menu.style.top = `${Math.max(8, Math.min(event.clientY, innerHeight - rect.height - 8))}px`;
+}
+
+document.addEventListener('pointerdown', (event) => {
+  if (menu && !menu.hidden && !menu.contains(event.target)) hideContextMenu();
+});
+document.addEventListener('contextmenu', (event) => {
+  if (menu && !menu.hidden) hideContextMenu();
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') hideContextMenu();
+});
+addEventListener('scroll', hideContextMenu, true);
+addEventListener('resize', hideContextMenu);
 
 function playSafe(video) {
   const played = video.play();
@@ -37,7 +103,8 @@ function ensureTile(key, { muted = false, mirror = false, screen = false } = {})
   return tile;
 }
 
-function setTile(tile, { stream, name, video, mic, color }) {
+function setTile(tile, { stream, name, video, mic, color, muted = false }) {
+  tile.video.muted = muted || S.local.deafened;
   if (tile.video.srcObject !== stream) {
     tile.video.srcObject = stream;
     if (stream) playSafe(tile.video);
@@ -59,12 +126,12 @@ export function renderAll() {
   const live = new Set();
 
   const me = ensureTile('me:main', { muted: true, mirror: true });
-  setTile(me, { stream: S.local.cam ? S.local.main : null, name: `${S.name} (you)`, video: !!S.local.cam, mic: myState().mic, color: S.color });
+  setTile(me, { stream: S.local.cam ? S.local.main : null, name: `${S.name} (you)`, video: !!S.local.cam, mic: myState().mic, color: S.color, muted: true });
   live.add('me:main');
 
   if (S.local.screen) {
     const screen = ensureTile('me:screen', { muted: true, screen: true });
-    setTile(screen, { stream: S.local.screen, name: 'Your screen', video: true, color: S.color });
+    setTile(screen, { stream: S.local.screen, name: 'Your screen', video: true, color: S.color, muted: true });
     live.add('me:screen');
   }
 
@@ -129,33 +196,66 @@ export function renderPeople() {
     const name = document.createElement('span');
     name.className = 'pname';
     const isHost = person.id === S.host_id;
-    name.textContent = person.name + (person.you ? ' (you)' : '') + (isHost ? ' · Host' : '');
+    name.textContent = person.name + (person.you ? ' (you)' : '') + (isHost ? ' (Host)' : '');
     const icons = document.createElement('span');
     icons.className = 'picons';
     const state = person.state || {};
+    const forcedMute = !!state.host_muted;
+    const forcedDeafen = !!state.host_deafened;
     icons.innerHTML =
       (state.screen ? `<i class="on icon ${ICONS.screen}" title="Sharing screen"></i>` : '') +
       (state.cam ? `<i class="on icon ${ICONS.cam}" title="Camera on"></i>` : '') +
-      (state.mic ? `<i class="icon ${ICONS.mic}" title="Mic on"></i>` : `<i class="off icon ${ICONS.micOff}" title="Muted"></i>`);
+      (state.mic ? `<i class="icon ${ICONS.mic}" title="Mic on"></i>` : `<i class="${forcedMute ? 'off ' : ''}icon ${ICONS.micOff}" title="${forcedMute ? 'Muted by host' : 'Muted'}"></i>`);
+    li.classList.toggle('moderated', forcedMute || forcedDeafen);
+    li.title = forcedMute && forcedDeafen ? 'Muted and deafened by host' : forcedMute ? 'Muted by host' : forcedDeafen ? 'Deafened by host' : '';
     li.append(avatar, name, icons);
     if (S.host_id === S.me && !person.you && person.id) {
-      const kick = document.createElement('button');
-      kick.className = 'kick-btn';
-      kick.textContent = 'Kick';
-      kick.title = `Disconnect ${person.name}`;
-      kick.onclick = (event) => {
-        event.stopPropagation();
-        if (confirm(`Disconnect ${person.name}? They can rejoin.`)) send({ t: 'kick', to: person.id });
+      const actions = document.createElement('span');
+      actions.className = 'pactions';
+      const action = (label, icon, danger, run) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'paction' + (danger ? ' danger' : '');
+        button.title = label;
+        button.setAttribute('aria-label', label);
+        const glyph = document.createElement('span');
+        glyph.className = 'icon ' + icon;
+        button.append(glyph);
+        button.onclick = (event) => {
+          event.stopPropagation();
+          hideContextMenu();
+          run();
+        };
+        actions.append(button);
       };
-      const ban = document.createElement('button');
-      ban.className = 'ban-btn';
-      ban.textContent = 'Ban';
-      ban.title = `Ban ${person.name} from this room`;
-      ban.onclick = (event) => {
+      action('Make host', 'ic-user', false, () => {
+        if (confirm(`Make ${person.name} the host? They will get host controls and you will lose yours.`)) {
+          send({ t: 'promote', to: person.id });
+        }
+      });
+      action(forcedMute ? 'Unmute' : 'Mute', forcedMute ? ICONS.mic : ICONS.micOff, forcedMute, () => {
+        send({ t: 'moderate', to: person.id, action: 'mute', on: !forcedMute });
+      });
+      action(forcedDeafen ? 'Undeafen' : 'Deafen', forcedDeafen ? ICONS.deafenOff : ICONS.deafen, forcedDeafen, () => {
+        send({ t: 'moderate', to: person.id, action: 'deafen', on: !forcedDeafen });
+      });
+      action('Kick', ICONS.leave, false, () => {
+        if (confirm(`Disconnect ${person.name}? They can rejoin.`)) {
+          send({ t: 'kick', to: person.id });
+        }
+      });
+      action('Ban', 'ic-close', true, () => {
+        if (confirm(`Ban ${person.name} from this room?`)) {
+          send({ t: 'ban', to: person.id });
+        }
+      });
+      li.classList.add('has-actions');
+      li.append(actions);
+      li.oncontextmenu = (event) => {
+        event.preventDefault();
         event.stopPropagation();
-        if (confirm(`Ban ${person.name} from this room?`)) send({ t: 'ban', to: person.id });
+        showPersonMenu(event, person);
       };
-      li.append(kick, ban);
     }
     ul.append(li);
   }
@@ -169,11 +269,20 @@ export function updateControls() {
     setIcon(button.querySelector('.ic'), icon);
     button.querySelector('.lbl').textContent = label;
   };
-  set($('#micBtn'), state.mic, state.mic ? ICONS.mic : ICONS.micOff, state.mic ? 'Mute' : 'Unmute');
+  const mic = $('#micBtn');
+  mic.classList.toggle('off', !state.mic);
+  mic.classList.toggle('locked', state.host_muted);
+  setIcon(mic.querySelector('.ic'), state.mic ? ICONS.mic : ICONS.micOff);
+  mic.querySelector('.lbl').textContent = state.host_muted ? 'Muted' : state.mic ? 'Mute' : 'Unmute';
   set($('#camBtn'), state.cam, state.cam ? ICONS.cam : ICONS.camOff, state.cam ? 'Stop video' : 'Start video');
   set($('#screenBtn'), true, ICONS.screen, state.screen ? 'Stop sharing' : 'Share screen');
+  const deafen = $('#deafenBtn');
+  deafen.classList.toggle('active', state.deafened && !state.host_deafened);
+  deafen.classList.toggle('locked', state.host_deafened);
+  setIcon(deafen.querySelector('.ic'), state.deafened ? ICONS.deafenOff : ICONS.deafen);
+  deafen.querySelector('.lbl').textContent = state.host_deafened ? 'Deafened' : state.deafened ? 'Undeafen' : 'Deafen';
+  $('#flipBtn').hidden = !state.cam || (S.cameras.length < 2 && !coarsePointer.matches);
   $('#screenBtn').classList.toggle('active', state.screen);
-  $('#micBtn').classList.toggle('alert', !state.mic);
   $('#camBtn').classList.toggle('alert', !state.cam);
 }
 
@@ -191,6 +300,8 @@ export function clearTiles() {
   $('#tiles').replaceChildren();
   tiles.clear();
 }
+
+export { hideContextMenu };
 
 export function unlockTiles() {
   for (const tile of tiles.values()) tile.video.play().catch(() => {});

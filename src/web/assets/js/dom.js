@@ -5,6 +5,8 @@ export const COLORS = [210, 0, 25, 45, 90, 150, 190, 260, 300, 340];
 export const ICONS = {
   mic: 'ic-mic',
   micOff: 'ic-mic-off',
+  deafen: 'ic-headphones',
+  deafenOff: 'ic-headphones-off',
   cam: 'ic-video',
   camOff: 'ic-camera-off',
   screen: 'ic-screen',

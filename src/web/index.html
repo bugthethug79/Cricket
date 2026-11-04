@@ -71,15 +71,16 @@
 <section id="call" class="screen" hidden>
   <div class="stage">
     <header class="headerbar">
-      <span class="hb-start"></span>
+      <span class="hb-start">
+        <button id="copyLink" class="btn flat circular" title="Copy Invite Link">
+          <span class="icon ic-link"></span>
+        </button>
+      </span>
       <div class="hb-center">
         <span class="hb-title">Cricket</span>
         <span id="count" class="hb-subtitle">1 in call</span>
       </div>
       <div class="hb-end">
-        <button id="copyLink" class="btn flat circular" title="Copy Invite Link">
-          <span class="icon ic-link"></span>
-        </button>
       </div>
     </header>
     <div id="audioHint" class="banner" hidden>
@@ -89,7 +90,9 @@
     <div id="tiles" class="tiles"></div>
     <footer class="controls">
       <button id="micBtn" class="ctl" title="Microphone (M)"><span class="ic"></span><span class="lbl">Mic</span></button>
+      <button id="deafenBtn" class="ctl" title="Deafen"><span class="ic"></span><span class="lbl">Deafen</span></button>
       <button id="camBtn" class="ctl" title="Camera (V)"><span class="ic"></span><span class="lbl">Camera</span></button>
+      <button id="flipBtn" class="ctl" title="Switch camera" hidden><span class="ic"></span><span class="lbl">Flip</span></button>
       <button id="screenBtn" class="ctl" title="Share Screen"><span class="ic"></span><span class="lbl">Share</span></button>
       <button id="panelBtn" class="ctl" title="People and Chat"><span class="ic"></span><span class="lbl">Chat</span><span id="unread" class="badge" hidden></span></button>
       <button id="leaveBtn" class="ctl danger" title="Leave"><span class="ic"></span><span class="lbl">Leave</span></button>
@@ -138,6 +141,7 @@
   </div>
 </section>
 
+<div id="contextMenu" class="context-menu" hidden></div>
 <div id="toast" class="toast" hidden></div>
 <script type="module" src="/assets/js/app.js"></script>
 </body>

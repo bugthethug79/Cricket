@@ -1,13 +1,13 @@
 import { S } from './state.js';
 import { $, show, setIcon, ICONS, copy, toast } from './dom.js';
 import { store } from './storage.js';
-import { deriveKeys } from './crypto.js';
+import { deriveAuth } from './crypto.js';
 import { makeInvite } from './invite.js';
-import { send, connect as openSocket } from './socket.js';
-import { addPeer, onSignal, removePeer } from './rtc.js';
-import { toggleMic, toggleCam, toggleScreen } from './media.js';
-import { renderAll, clearTiles, unlockTiles, renderSpeaking } from './ui.js';
-import { sysMsg, onChat, sendChat, setTab, setUnread, chatVisible } from './chat.js';
+import { connect as openSocket } from './socket.js';
+import { addPeer, onSignal, removePeer, checkPeers } from './rtc.js';
+import { toggleMic, toggleCam, toggleScreen, toggleDeafen, flipCam, applyModeration } from './media.js';
+import { renderAll, clearTiles, unlockTiles, renderSpeaking, hideContextMenu } from './ui.js';
+import { sysMsg, sendChat, setTab, setUnread, chatVisible } from './chat.js';
 import { tickMeters, isSpeaking } from './speaking.js';
 import { playSound } from './sound.js';
 
@@ -19,12 +19,11 @@ export async function startCall(invite, name, color) {
   S.name = name;
   S.color = color;
   S.host_token = store.get('host.' + invite.room) || '';
-  const keys = await deriveKeys(invite.key);
-  S.auth = keys.auth;
-  S.chatKey = keys.chatKey;
+  S.auth = await deriveAuth(invite.key);
 
   try { S.audioCtx = new AudioContext(); } catch { }
   setInterval(() => { tickMeters(); renderSpeaking(isSpeaking); }, 200);
+  setInterval(checkPeers, 5000);
 
   show('call');
   if (innerWidth < 900) $('#call').classList.add('panel-hidden');
@@ -77,7 +76,11 @@ function onMessage(message) {
       }
       break;
     }
+    case 'moderate':
+      applyModeration(message.action, !!message.on);
+      break;
     case 'host':
+      hideContextMenu();
       S.host_id = message.id || '';
       renderAll();
       break;
@@ -90,9 +93,6 @@ function onMessage(message) {
       }
       break;
     }
-    case 'chat':
-      onChat(message);
-      break;
     case 'error':
       S.errorMsg = message.msg;
       break;
@@ -106,18 +106,17 @@ function onClose(event) {
     endCall('Removed from room', 'The host disconnected you from this call. You can rejoin.');
     return;
   }
-  if (event.code === 4002) {
-    playSound('leave');
-    endCall('Room ended', 'The host left the room.');
-    return;
-  }
   if (event.code === 4003) {
-    endCall('Room ended', 'The room expired before the host joined.');
+    endCall('This call has ended', 'The room expired before it was opened.', false);
     return;
   }
   if (event.code === 4004) {
     playSound('leave');
-    endCall('Banned from room', 'The host banned you from this room.');
+    endCall('Banned from room', 'The host banned you from this room.', false);
+    return;
+  }
+  if (event.code === 4005) {
+    endCall('This call has ended', 'Everyone has left this call.', false);
     return;
   }
   if (S.errorMsg) endCall('Unable to join', S.errorMsg);
@@ -129,14 +128,31 @@ function bindControls() {
   bound = true;
   setIcon($('#panelBtn .ic'), ICONS.chat);
   setIcon($('#leaveBtn .ic'), ICONS.leave);
+  setIcon($('#deafenBtn .ic'), ICONS.deafen);
+  setIcon($('#flipBtn .ic'), ICONS.cam);
   $('#micBtn').onclick = toggleMic;
+  $('#deafenBtn').onclick = toggleDeafen;
   $('#camBtn').onclick = toggleCam;
+  $('#flipBtn').onclick = flipCam;
   $('#screenBtn').onclick = toggleScreen;
   $('#leaveBtn').onclick = () => {
+    if (S.host_id === S.me) {
+      const message = S.peers.size
+        ? 'You are the host. Leaving will pass host controls to another participant. Leave anyway?'
+        : 'You are the host. Leaving will end this call and the invite link will stop working. Leave anyway?';
+      if (!confirm(message)) return;
+      S.left = true;
+      location.replace('/');
+      return;
+    }
     playSound('leave');
-    if (S.host_id === S.me) send({ t: 'end' });
     endCall('You left the room', '');
   };
+  addEventListener('beforeunload', (event) => {
+    if (S.left || S.host_id !== S.me) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
   $('#copyLink').onclick = () => copy(makeInvite(S.invite.room, S.invite.key));
   $('#panelBtn').onclick = () => {
     const call = $('#call');
@@ -177,7 +193,7 @@ function bindControls() {
   });
 }
 
-function endCall(title, message) {
+function endCall(title, message, allowRejoin = true) {
   if (S.left) return;
   S.left = true;
   for (const peer of S.peers.values()) removePeer(peer);
@@ -185,9 +201,11 @@ function endCall(title, message) {
   if (S.local.screen) for (const track of S.local.screen.getTracks()) track.stop();
   if (S.ws) S.ws.close();
   if (S.audioCtx) S.audioCtx.close().catch(() => {});
+  hideContextMenu();
   clearTiles();
   $('#endedTitle').textContent = title;
   $('#endedMsg').textContent = message;
+  $('#rejoinBtn').hidden = !allowRejoin;
   $('#rejoinBtn').onclick = () => location.reload();
   show('ended');
 }

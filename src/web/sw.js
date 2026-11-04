@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'cricket-0.1.0-2';
+const VERSION = 'cricket-0.1.0-16';
 const SHELL = [
   '/',
   '/j',
@@ -30,6 +30,8 @@ const SHELL = [
   '/assets/icons/link.svg',
   '/assets/icons/mic.svg',
   '/assets/icons/mic-off.svg',
+  '/assets/icons/headphones.svg',
+  '/assets/icons/headphones-off.svg',
   '/assets/icons/camera-off.svg',
   '/assets/icons/screen.svg',
   '/assets/icons/send.svg',
