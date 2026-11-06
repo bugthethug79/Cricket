@@ -12,6 +12,7 @@ export function addPeer(info) {
   });
   const peer = {
     id: info.id, name: info.name, color: info.color, state: info.state || {}, joinedAt: info.joined_at,
+    connected: info.connected !== false,
     pc, polite: S.me < info.id, makingOffer: false, ignoreOffer: false,
     senders: new Map(), streams: new Map(), queue: Promise.resolve(), chat: null,
     unhealthySince: 0, lastRestart: 0,
@@ -100,6 +101,29 @@ export function removePeer(peer) {
   removeSpeaking(peer.id);
   peer.chat = null;
   S.peers.delete(peer.id);
+}
+
+export function syncPeers(infos) {
+  const seen = new Set();
+  for (const info of infos) {
+    seen.add(info.id);
+    const peer = S.peers.get(info.id);
+    if (!peer) {
+      addPeer(info);
+      continue;
+    }
+    peer.name = info.name;
+    peer.color = info.color;
+    peer.state = info.state || {};
+    peer.connected = info.connected !== false;
+    const pc = peer.pc;
+    if (pc.connectionState === 'failed' || pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+      try { pc.restartIce(); } catch { }
+    }
+  }
+  for (const peer of [...S.peers.values()]) {
+    if (!seen.has(peer.id)) removePeer(peer);
+  }
 }
 
 export function addLocalTrack(track, stream) {

@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'cricket-0.1.0-16';
+const CACHE = 'cricket';
 const SHELL = [
   '/',
   '/j',
@@ -24,6 +24,8 @@ const SHELL = [
   '/assets/sounds/leave.wav',
   '/assets/sounds/notify.wav',
   '/manifest.webmanifest',
+  '/assets/icons/placeholder-192.png',
+  '/assets/icons/placeholder-512.png',
   '/assets/icons/chat.svg',
   '/assets/icons/close.svg',
   '/assets/icons/leave.svg',
@@ -41,7 +43,7 @@ const SHELL = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(VERSION)
+    caches.open(CACHE)
       .then((cache) => cache.addAll(SHELL))
       .then(() => self.skipWaiting()),
   );
@@ -50,7 +52,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
@@ -72,15 +74,14 @@ self.addEventListener('fetch', (event) => {
 
   if (url.pathname.startsWith('/assets/') || url.pathname === '/manifest.webmanifest') {
     event.respondWith(
-      caches.open(VERSION).then(async (cache) => {
-        const cached = await cache.match(request);
-        const fresh = fetch(request)
-          .then((res) => {
-            if (res.ok) cache.put(request, res.clone());
-            return res;
-          })
-          .catch(() => cached);
-        return cached || fresh;
+      caches.open(CACHE).then(async (cache) => {
+        try {
+          const fresh = await fetch(request);
+          if (fresh.ok) cache.put(request, fresh.clone());
+          return fresh;
+        } catch {
+          return (await cache.match(request)) || Response.error();
+        }
       }),
     );
   }

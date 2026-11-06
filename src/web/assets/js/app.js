@@ -3,7 +3,29 @@ import { parseInvite } from './invite.js';
 import { initLanding, initPrejoin } from './landing.js';
 // BUG! i split the monolithic app.js into a bunch of sub children
 // Though whatever claude made was... Well it was kinda unmaintainable now all ive done is move around the code rlly
- 
+
+let installPrompt = null;
+
+addEventListener('beforeinstallprompt', (event) => {
+  event.preventDefault();
+  installPrompt = event;
+  for (const button of document.querySelectorAll('.install')) button.hidden = false;
+});
+
+addEventListener('appinstalled', () => {
+  installPrompt = null;
+  for (const button of document.querySelectorAll('.install')) button.hidden = true;
+});
+
+document.addEventListener('click', async (event) => {
+  const button = event.target.closest('.install');
+  if (!button || !installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice.catch(() => {});
+  installPrompt = null;
+  for (const item of document.querySelectorAll('.install')) item.hidden = true;
+});
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {});

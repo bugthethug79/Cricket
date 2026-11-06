@@ -3,8 +3,8 @@ import { $, show, setIcon, ICONS, copy, toast } from './dom.js';
 import { store } from './storage.js';
 import { deriveAuth } from './crypto.js';
 import { makeInvite } from './invite.js';
-import { connect as openSocket } from './socket.js';
-import { addPeer, onSignal, removePeer, checkPeers } from './rtc.js';
+import { connect as openSocket, send } from './socket.js';
+import { addPeer, syncPeers, onSignal, removePeer, checkPeers } from './rtc.js';
 import { toggleMic, toggleCam, toggleScreen, toggleDeafen, flipCam, applyModeration } from './media.js';
 import { renderAll, clearTiles, unlockTiles, renderSpeaking, hideContextMenu } from './ui.js';
 import { sysMsg, sendChat, setTab, setUnread, chatVisible } from './chat.js';
@@ -38,17 +38,23 @@ function connect() {
 
 function onMessage(message) {
   switch (message.t) {
-    case 'welcome':
+    case 'welcome': {
+      const reconnected = !!S.me;
+      if (reconnected) toast('Reconnected');
+      else playSound('join');
+      if (S.me && S.me !== message.self.id) {
+        for (const peer of [...S.peers.values()]) removePeer(peer);
+      }
       S.me = message.self.id;
       S.joinedAt = message.self.joined_at;
-      playSound('join');
       if (typeof message.self.color === 'number') S.color = message.self.color;
       S.host_id = message.host || '';
       S.ice = message.ice || [];
       S.forceRelay = !!message.force_relay;
-      for (const peer of message.peers) addPeer(peer);
+      syncPeers(message.peers);
       renderAll();
       break;
+    }
     case 'peer-join':
       addPeer(message.peer);
       playSound('join');
@@ -72,6 +78,7 @@ function onMessage(message) {
         peer.name = message.peer.name;
         peer.color = message.peer.color;
         peer.state = message.peer.state || {};
+        peer.connected = message.peer.connected !== false;
         renderAll();
       }
       break;
@@ -199,6 +206,7 @@ function endCall(title, message, allowRejoin = true) {
   for (const peer of S.peers.values()) removePeer(peer);
   for (const track of S.local.main.getTracks()) track.stop();
   if (S.local.screen) for (const track of S.local.screen.getTracks()) track.stop();
+  send({ t: 'leave' });
   if (S.ws) S.ws.close();
   if (S.audioCtx) S.audioCtx.close().catch(() => {});
   hideContextMenu();

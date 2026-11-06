@@ -15,8 +15,6 @@ import (
 	"github.com/pion/turn/v4"
 )
 
-const Version = "0.1.0"
-
 type Server struct {
 	cfg         *Config
 	hub         *Hub
@@ -127,7 +125,6 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 
 func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"version":               Version,
 		"create_token_required": s.cfg.CreateToken != "",
 		"max_peers":             s.cfg.MaxPeers,
 	})

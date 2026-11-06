@@ -32,11 +32,12 @@ type PeerState struct {
 }
 
 type PeerInfo struct {
-	ID       string    `json:"id"`
-	Name     string    `json:"name"`
-	State    PeerState `json:"state"`
-	JoinedAt int64     `json:"joined_at"`
-	Color    *int      `json:"color,omitempty"`
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	State     PeerState `json:"state"`
+	JoinedAt  int64     `json:"joined_at"`
+	Color     *int      `json:"color,omitempty"`
+	Connected bool      `json:"connected"`
 }
 
 type kickMsg struct {
@@ -59,17 +60,21 @@ type Peer struct {
 	done      chan struct{}
 	kickCh    chan kickMsg
 	closeOnce sync.Once
+	online    bool
+	goneAt    time.Time
+	kicked    bool
 
 	msgLimit bucket
 }
 
 func (p *Peer) info() PeerInfo {
 	return PeerInfo{
-		ID:       p.ID,
-		Name:     p.Name,
-		State:    p.State,
-		JoinedAt: p.JoinedAt.UnixMilli(),
-		Color:    p.Color,
+		ID:        p.ID,
+		Name:      p.Name,
+		State:     p.State,
+		JoinedAt:  p.JoinedAt.UnixMilli(),
+		Color:     p.Color,
+		Connected: p.online,
 	}
 }
 
@@ -85,6 +90,7 @@ func (p *Peer) enqueue(msg []byte) {
 }
 
 func (p *Peer) kick(code int, text string) {
+	p.kicked = true
 	select {
 	case p.kickCh <- kickMsg{code: code, text: text}:
 	default:
@@ -242,6 +248,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		send:     make(chan []byte, 256),
 		done:     make(chan struct{}),
 		kickCh:   make(chan kickMsg, 1),
+		online:   true,
 	}
 	if join.State != nil {
 		p.State = sanitizeState(*join.State)
@@ -269,8 +276,9 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 
 	go p.writePump()
 	defer func() {
-		room.Leave(p)
-		s.hub.FinishIfEmpty(room)
+		if room.Disconnect(p) {
+			s.hub.FinishIfEmpty(room)
+		}
 		p.close()
 	}()
 
@@ -316,6 +324,10 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			if m.To != "" {
 				room.Promote(p.ID, m.To)
 			}
+		case "leave":
+			room.Leave(p)
+			s.hub.FinishIfEmpty(room)
+			return
 		case "ping":
 			p.enqueue(mustJSON(map[string]string{"t": "pong"}))
 		}

@@ -242,10 +242,13 @@ label.row { cursor: pointer; }
 .tile.novideo video { visibility: hidden; }
 .tile .avatar { display: none; }
 .tile.novideo .avatar { display: grid; }
-.tile.connecting::after {
-  content: "Connecting…"; position: absolute; top: 8px; right: 8px;
+.tile.connecting::after, .tile.disconnected::after, .mini.disconnected::after {
+  position: absolute; top: 8px; right: 8px;
   font-size: 13px; color: #fff; background: var(--osd-bg); padding: 3px 10px; border-radius: 9999px;
 }
+.tile.connecting::after { content: "Connecting..."; }
+.tile.disconnected::after, .mini.disconnected::after { content: "Disconnected"; }
+.tile.disconnected video, .mini.disconnected video { opacity: .35; }
 
 /* AdwAvatar: two-tone gradient with a pale initial. */
 .avatar {
@@ -267,6 +270,26 @@ label.row { cursor: pointer; }
 }
 .label .mic-off { color: #ff938c; display: inline-flex; }
 .label .icon { width: 14px; height: 14px; }
+
+.mini {
+  position: fixed; z-index: 8;
+  width: min(144px, 44vw); aspect-ratio: 1; height: auto;
+  overflow: hidden; border-radius: 14px;
+  background: #000;
+  box-shadow: 0 8px 24px rgb(0 0 6 / .35), 0 0 0 1px rgb(255 255 255 / .14);
+  cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.mini.dragging { cursor: grabbing; }
+.mini video {
+  display: block; width: 100%; height: 100%;
+  object-fit: cover; background: #000; pointer-events: none;
+}
+.mini.screen video { object-fit: contain; }
+.mini.mirror video { transform: scaleX(-1); }
+.mini .label {
+  left: 6px; bottom: 6px; max-width: calc(100% - 12px);
+  padding: 3px 8px; font-size: 12px; pointer-events: none;
+}
 
 .controls {
   display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;

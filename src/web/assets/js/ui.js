@@ -103,13 +103,14 @@ function ensureTile(key, { muted = false, mirror = false, screen = false } = {})
   return tile;
 }
 
-function setTile(tile, { stream, name, video, mic, color, muted = false }) {
+function setTile(tile, { stream, name, video, mic, color, muted = false, connected = true }) {
   tile.video.muted = muted || S.local.deafened;
   if (tile.video.srcObject !== stream) {
     tile.video.srcObject = stream;
     if (stream) playSafe(tile.video);
   }
   tile.el.classList.toggle('novideo', !video);
+  tile.el.classList.toggle('disconnected', !connected);
   tile.nameEl.textContent = name;
   tile.micEl.hidden = mic !== false;
   if (tile.avatar.dataset.name !== name) {
@@ -120,6 +121,86 @@ function setTile(tile, { stream, name, video, mic, color, muted = false }) {
 }
 
 const liveVideo = (stream) => !!stream && stream.getVideoTracks().some((track) => track.readyState === 'live' && !track.muted);
+
+const mini = $('#mini');
+const miniVideo = $('#miniVideo');
+const miniName = $('#miniName');
+const MINI_MARGIN = 12;
+let miniDrag = null;
+let miniPlaced = false;
+
+function placeMini(left, top) {
+  const width = mini.offsetWidth || 144;
+  const height = mini.offsetHeight || 144;
+  const maxLeft = Math.max(MINI_MARGIN, innerWidth - width - MINI_MARGIN);
+  const maxTop = Math.max(MINI_MARGIN, innerHeight - height - MINI_MARGIN);
+  mini.style.left = `${Math.min(Math.max(MINI_MARGIN, left), maxLeft)}px`;
+  mini.style.top = `${Math.min(Math.max(MINI_MARGIN, top), maxTop)}px`;
+}
+
+function bindMiniDrag() {
+  mini.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    const rect = mini.getBoundingClientRect();
+    miniDrag = { id: event.pointerId, dx: event.clientX - rect.left, dy: event.clientY - rect.top };
+    try { mini.setPointerCapture(event.pointerId); } catch { }
+    mini.classList.add('dragging');
+    event.preventDefault();
+  });
+  mini.addEventListener('pointermove', (event) => {
+    if (!miniDrag || miniDrag.id !== event.pointerId) return;
+    placeMini(event.clientX - miniDrag.dx, event.clientY - miniDrag.dy);
+  });
+  const end = (event) => {
+    if (!miniDrag || miniDrag.id !== event.pointerId) return;
+    miniDrag = null;
+    mini.classList.remove('dragging');
+  };
+  mini.addEventListener('pointerup', end);
+  mini.addEventListener('pointercancel', end);
+}
+
+bindMiniDrag();
+
+function miniTarget() {
+  if (!S.pinned || S.left || innerWidth >= 900) return null;
+  if ($('#call').hidden || $('#call').classList.contains('panel-hidden')) return null;
+  const tile = tiles.get(S.pinned);
+  if (!tile || tile.el.classList.contains('novideo')) return null;
+  const stream = tile.video.srcObject;
+  if (!liveVideo(stream)) return null;
+  return { tile, stream };
+}
+
+export function updateMini() {
+  const target = miniTarget();
+  if (!target) {
+    if (!mini.hidden) {
+      mini.hidden = true;
+      miniVideo.srcObject = null;
+    }
+    return;
+  }
+  const { tile, stream } = target;
+  if (miniVideo.srcObject !== stream) {
+    miniVideo.srcObject = stream;
+    playSafe(miniVideo);
+  }
+  mini.classList.toggle('screen', tile.el.classList.contains('screen'));
+  mini.classList.toggle('mirror', tile.el.classList.contains('mirror'));
+  mini.classList.toggle('disconnected', tile.el.classList.contains('disconnected'));
+  miniName.textContent = tile.nameEl.textContent;
+  const wasHidden = mini.hidden;
+  mini.hidden = false;
+  if (wasHidden && !miniPlaced) {
+    miniPlaced = true;
+    const header = $('#panel .headerbar');
+    const top = (header ? header.getBoundingClientRect().height : 0) + MINI_MARGIN;
+    placeMini(MINI_MARGIN, top);
+  } else if (mini.style.left && mini.style.top) {
+    placeMini(parseFloat(mini.style.left), parseFloat(mini.style.top));
+  }
+}
 
 export function renderAll() {
   if (S.left) return;
@@ -144,13 +225,13 @@ export function renderAll() {
       else if (!main || stream.getTracks().length) main = stream;
     }
     const tile = ensureTile(peer.id + ':main');
-    setTile(tile, { stream: main, name: peer.name, video: peer.state.cam && liveVideo(main), mic: !!peer.state.mic, color: peer.color });
+    setTile(tile, { stream: main, name: peer.name, video: peer.state.cam && liveVideo(main), mic: !!peer.state.mic, color: peer.color, connected: peer.connected });
     tile.el.classList.toggle('connecting', ['checking', 'disconnected', 'failed'].includes(peer.pc.iceConnectionState));
     live.add(peer.id + ':main');
 
     if (screen && peer.state.screen) {
       const screenTile = ensureTile(peer.id + ':screen', { screen: true });
-      setTile(screenTile, { stream: screen, name: `${peer.name}'s screen`, video: true, color: peer.color });
+      setTile(screenTile, { stream: screen, name: `${peer.name}'s screen`, video: true, color: peer.color, connected: peer.connected });
       live.add(peer.id + ':screen');
     }
   }
@@ -176,6 +257,7 @@ export function renderAll() {
 
   renderPeople();
   updateControls();
+  updateMini();
 }
 
 export function renderPeople() {
@@ -196,7 +278,7 @@ export function renderPeople() {
     const name = document.createElement('span');
     name.className = 'pname';
     const isHost = person.id === S.host_id;
-    name.textContent = person.name + (person.you ? ' (you)' : '') + (isHost ? ' (Host)' : '');
+    name.textContent = person.name + (person.you ? ' (you)' : '') + (isHost ? ' (Host)' : '') + (person.connected === false ? ' (disconnected)' : '');
     const icons = document.createElement('span');
     icons.className = 'picons';
     const state = person.state || {};
@@ -299,6 +381,7 @@ export function clearTiles() {
   for (const tile of tiles.values()) tile.video.srcObject = null;
   $('#tiles').replaceChildren();
   tiles.clear();
+  updateMini();
 }
 
 export { hideContextMenu };
