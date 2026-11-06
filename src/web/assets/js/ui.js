@@ -103,14 +103,13 @@ function ensureTile(key, { muted = false, mirror = false, screen = false } = {})
   return tile;
 }
 
-function setTile(tile, { stream, name, video, mic, color, muted = false, connected = true }) {
+function setTile(tile, { stream, name, video, mic, color, muted = false }) {
   tile.video.muted = muted || S.local.deafened;
   if (tile.video.srcObject !== stream) {
     tile.video.srcObject = stream;
     if (stream) playSafe(tile.video);
   }
   tile.el.classList.toggle('novideo', !video);
-  tile.el.classList.toggle('disconnected', !connected);
   tile.nameEl.textContent = name;
   tile.micEl.hidden = mic !== false;
   if (tile.avatar.dataset.name !== name) {
@@ -188,7 +187,6 @@ export function updateMini() {
   }
   mini.classList.toggle('screen', tile.el.classList.contains('screen'));
   mini.classList.toggle('mirror', tile.el.classList.contains('mirror'));
-  mini.classList.toggle('disconnected', tile.el.classList.contains('disconnected'));
   miniName.textContent = tile.nameEl.textContent;
   const wasHidden = mini.hidden;
   mini.hidden = false;
@@ -225,13 +223,13 @@ export function renderAll() {
       else if (!main || stream.getTracks().length) main = stream;
     }
     const tile = ensureTile(peer.id + ':main');
-    setTile(tile, { stream: main, name: peer.name, video: peer.state.cam && liveVideo(main), mic: !!peer.state.mic, color: peer.color, connected: peer.connected });
+    setTile(tile, { stream: main, name: peer.name, video: peer.state.cam && liveVideo(main), mic: !!peer.state.mic, color: peer.color });
     tile.el.classList.toggle('connecting', ['checking', 'disconnected', 'failed'].includes(peer.pc.iceConnectionState));
     live.add(peer.id + ':main');
 
     if (screen && peer.state.screen) {
       const screenTile = ensureTile(peer.id + ':screen', { screen: true });
-      setTile(screenTile, { stream: screen, name: `${peer.name}'s screen`, video: true, color: peer.color, connected: peer.connected });
+      setTile(screenTile, { stream: screen, name: `${peer.name}'s screen`, video: true, color: peer.color });
       live.add(peer.id + ':screen');
     }
   }
@@ -278,7 +276,7 @@ export function renderPeople() {
     const name = document.createElement('span');
     name.className = 'pname';
     const isHost = person.id === S.host_id;
-    name.textContent = person.name + (person.you ? ' (you)' : '') + (isHost ? ' (Host)' : '') + (person.connected === false ? ' (disconnected)' : '');
+    name.textContent = person.name + (person.you ? ' (you)' : '') + (isHost ? ' (Host)' : '');
     const icons = document.createElement('span');
     icons.className = 'picons';
     const state = person.state || {};

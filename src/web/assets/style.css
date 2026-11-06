@@ -242,13 +242,10 @@ label.row { cursor: pointer; }
 .tile.novideo video { visibility: hidden; }
 .tile .avatar { display: none; }
 .tile.novideo .avatar { display: grid; }
-.tile.connecting::after, .tile.disconnected::after, .mini.disconnected::after {
-  position: absolute; top: 8px; right: 8px;
+.tile.connecting::after {
+  content: "Connecting..."; position: absolute; top: 8px; right: 8px;
   font-size: 13px; color: #fff; background: var(--osd-bg); padding: 3px 10px; border-radius: 9999px;
 }
-.tile.connecting::after { content: "Connecting..."; }
-.tile.disconnected::after, .mini.disconnected::after { content: "Disconnected"; }
-.tile.disconnected video, .mini.disconnected video { opacity: .35; }
 
 /* AdwAvatar: two-tone gradient with a pale initial. */
 .avatar {

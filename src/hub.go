@@ -22,10 +22,7 @@ var (
 	errBanned       = errors.New("You were banned from this room.")
 )
 
-const (
-	maxUsedRooms   = 10000
-	reconnectGrace = 2 * time.Minute
-)
+const maxUsedRooms = 10000
 
 type Hub struct {
 	cfg        *Config
@@ -151,22 +148,6 @@ func (h *Hub) Join(roomID string, authToken, hostToken []byte, p *Peer, welcome 
 		return nil, errCallEnded
 	}
 
-	if previous := r.resumableLocked(p.ClientID); previous != nil {
-		p.ID = previous.ID
-		p.JoinedAt = previous.JoinedAt
-		p.room = r
-		r.peers[p.ID] = p
-		others := make([]PeerInfo, 0, len(r.peers)-1)
-		for _, id := range r.order {
-			if id != p.ID {
-				others = append(others, r.peers[id].info())
-			}
-		}
-		p.enqueue(welcome(p.info(), others, r.hostID))
-		r.broadcastLocked(mustJSON(map[string]any{"t": "peer-update", "peer": p.info()}), p.ID)
-		return r, nil
-	}
-
 	isHost := false
 	if r.hostID == "" && len(hostToken) == 32 {
 		hostSum := sha256.Sum256(hostToken)
@@ -190,36 +171,21 @@ func (h *Hub) Join(roomID string, authToken, hostToken []byte, p *Peer, welcome 
 		others = append(others, r.peers[id].info())
 	}
 	p.room = r
+	p.enqueue(welcome(p.info(), others, r.hostID))
+
+	r.broadcastLocked(mustJSON(map[string]any{"t": "peer-join", "peer": p.info()}), "")
 	r.peers[p.ID] = p
 	r.order = append(r.order, p.ID)
-	p.enqueue(welcome(p.info(), others, r.hostID))
-	r.broadcastLocked(mustJSON(map[string]any{"t": "peer-join", "peer": p.info()}), p.ID)
 	if oldHost != r.hostID {
 		r.broadcastLocked(hostMessage(r.hostID), "")
 	}
 	return r, nil
 }
 
-func (r *Room) resumableLocked(clientID string) *Peer {
-	if clientID == "" {
-		return nil
-	}
-	for _, p := range r.peers {
-		if p.ClientID == clientID && !p.online {
-			return p
-		}
-	}
-	return nil
-}
-
 func (r *Room) Leave(p *Peer) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.leaveLocked(p)
-}
-
-func (r *Room) leaveLocked(p *Peer) {
-	if r.peers[p.ID] != p {
+	if _, ok := r.peers[p.ID]; !ok {
 		return
 	}
 	delete(r.peers, p.ID)
@@ -238,34 +204,9 @@ func (r *Room) leaveLocked(p *Peer) {
 	if len(r.peers) == 0 {
 		return
 	}
-	var next *Peer
-	for _, id := range r.order {
-		if r.peers[id].online {
-			next = r.peers[id]
-			break
-		}
-	}
-	if next == nil {
-		next = r.peers[r.order[0]]
-	}
+	next := r.peers[r.order[0]]
 	r.hostID = next.ID
 	r.broadcastLocked(hostMessage(next.ID), "")
-}
-
-func (r *Room) Disconnect(p *Peer) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.peers[p.ID] != p {
-		return false
-	}
-	if r.closed || p.kicked {
-		r.leaveLocked(p)
-		return true
-	}
-	p.online = false
-	p.goneAt = time.Now()
-	r.broadcastLocked(mustJSON(map[string]any{"t": "peer-update", "peer": p.info()}), p.ID)
-	return false
 }
 
 func (r *Room) Promote(hostID, targetID string) {
@@ -306,11 +247,7 @@ func (r *Room) Kick(hostID, hostIP, targetID string, ban, banIP bool) {
 		return
 	}
 	if !ban {
-		if p.online {
-			p.kick(4001, "kicked")
-		} else {
-			r.leaveLocked(p)
-		}
+		p.kick(4001, "kicked")
 		return
 	}
 	if p.ClientID != "" {
@@ -319,11 +256,7 @@ func (r *Room) Kick(hostID, hostIP, targetID string, ban, banIP bool) {
 	if banIP && p.IP != "" && p.IP != hostIP {
 		r.bans["i:"+p.IP] = struct{}{}
 	}
-	if p.online {
-		p.kick(4004, "banned")
-	} else {
-		r.leaveLocked(p)
-	}
+	p.kick(4004, "banned")
 }
 
 func (r *Room) bannedLocked(clientID, ip string) bool {
@@ -394,7 +327,7 @@ func (h *Hub) markUsedLocked(id string) {
 
 func (r *Room) broadcastLocked(msg []byte, except string) {
 	for id, p := range r.peers {
-		if id != except && p.online {
+		if id != except {
 			p.enqueue(msg)
 		}
 	}
@@ -403,7 +336,7 @@ func (r *Room) broadcastLocked(msg []byte, except string) {
 func (r *Room) SendTo(id string, msg []byte) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if p, ok := r.peers[id]; ok && p.online {
+	if p, ok := r.peers[id]; ok {
 		p.enqueue(msg)
 	}
 }
@@ -424,11 +357,6 @@ func (h *Hub) janitor() {
 			if r.closed {
 				r.mu.Unlock()
 				continue
-			}
-			for _, p := range r.peers {
-				if !p.online && now.Sub(p.goneAt) > reconnectGrace {
-					r.leaveLocked(p)
-				}
 			}
 			if r.everHosted && len(r.peers) == 0 {
 				r.closed = true
